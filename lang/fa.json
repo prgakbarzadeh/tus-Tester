@@ -1,0 +1,74 @@
+{
+    "app": {
+        "title": "ابزار آپلود فایل Tus",
+        "subtitle": "کلاینت آپلود فایل با پروتکل Tus"
+    },
+    "instructions": {
+        "title": "دستورالعمل",
+        "list": [
+            "آدرس سرور Tus را وارد کنید (مثال: https://localhost:7010)",
+            "توکن JWT خود را جایگذاری کنید",
+            "فایل را انتخاب یا کشیدن و رها کنید",
+            "دکمه \"شروع آپلود\" را کلیک کنید",
+            "در صورت نیاز از دکمه \"توقف آپلود\" استفاده کنید",
+            "پیشرفت را در پنل لاگ مشاهده کنید"
+        ]
+    },
+    "logs": {
+        "title": "لاگ سیستم"
+    },
+    "server": {
+        "title": "تنظیمات سرور",
+        "urlLabel": "آدرس سرور Tus",
+        "testButton": "تست اتصال",
+        "urlHelp": "آدرس پایه سرور Tus خود را وارد کنید"
+    },
+    "token": {
+        "title": "توکن احراز هویت",
+        "label": "توکن JWT",
+        "placeholder": "توکن JWT خود را اینجا جایگذاری کنید...",
+        "setButton": "تنظیم توکن",
+        "clearButton": "پاک کردن",
+        "pasteButton": "جایگذاری",
+        "copyButton": "کپی",
+        "noToken": "بدون توکن",
+        "validToken": "معتبر"
+    },
+    "upload": {
+        "title": "آپلود فایل",
+        "dragDrop": "فایل را اینجا بکشید و رها کنید",
+        "browseText": "یا برای انتخاب کلیک کنید",
+        "browseButton": "انتخاب فایل",
+        "fileName": "نام فایل:",
+        "fileSize": "حجم:",
+        "fileType": "نوع:",
+        "progress": "پیشرفت آپلود",
+        "startButton": "شروع آپلود",
+        "stopButton": "توقف آپلود",
+        "clearButton": "حذف فایل"
+    },
+    "status": {
+        "title": "وضعیت سیستم",
+        "waiting": "در انتظار پیکربندی...",
+        "offline": "آفلاین",
+        "online": "آنلاین"
+    },
+    "footer": {
+        "copyright": "ابزار آپلود فایل Tus"
+    },
+    "messages": {
+        "tokenSet": "توکن با موفقیت تنظیم شد",
+        "tokenInvalid": "فرمت توکن نامعتبر است",
+        "tokenCleared": "توکن پاک شد",
+        "serverTestSuccess": "اتصال به سرور موفقیت‌آمیز بود",
+        "serverTestError": "اتصال به سرور برقرار نشد",
+        "fileSelected": "فایل انتخاب شد: {filename}",
+        "fileCleared": "فایل حذف شد",
+        "uploadStarted": "آپلود شروع شد",
+        "uploadStopped": "آپلود متوقف شد",
+        "uploadComplete": "آپلود با موفقیت تکمیل شد",
+        "uploadError": "خطا در آپلود: {error}",
+        "logsCopied": "لاگ‌ها در کلیپ‌بورد کپی شد",
+        "logsCleared": "لاگ‌ها پاک شدند"
+    }
+}
