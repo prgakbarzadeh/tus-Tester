@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تست آپلود فایل با Tus و JWT</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 700px;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        
+        h2 {
+            color: #4f46e5;
+            margin: 20px 0 10px 0;
+            font-size: 20px;
+        }
+        
+        .server-section {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: right;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .input-group input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+        
+        .token-section {
+            background: #f0f9ff;
+            border: 2px solid #bae6fd;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: right;
+        }
+        
+        .token-status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .token-status.valid {
+            background: #10b981;
+            color: white;
+        }
+        
+        .token-status.invalid {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .token-status.expired {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .upload-section {
+            background: #f0fdf4;
+            border: 2px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        
+        .upload-area {
+            border: 3px dashed #22c55e;
+            border-radius: 15px;
+            padding: 40px 20px;
+            margin: 15px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f7fee7;
+        }
+        
+        .upload-area:hover {
+            background: #ecfccb;
+            border-color: #16a34a;
+        }
+        
+        .upload-area.dragover {
+            background: #dcfce7;
+            border-color: #22c55e;
+        }
+        
+        .upload-icon {
+            font-size: 60px;
+            margin-bottom: 15px;
+            color: #22c55e;
+        }
+        
+        .file-info {
+            background: #f1f5f9;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: right;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
+        }
+        
+        button:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+            transform: none;
+            opacity: 0.6;
+        }
+        
+        button.secondary {
+            background: linear-gradient(135deg, #475569 0%, #334155 100%);
+        }
+        
+        button.success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        
+        button.danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 24px;
+            background: linear-gradient(90deg, #3b82f6, #6366f1);
+            width: 0%;
+            transition: width 0.3s ease;
+            text-align: center;
+            color: white;
+            font-size: 14px;
+            line-height: 24px;
+            font-weight: bold;
+        }
+        
+        .status-box {
+            margin: 15px 0;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .status-box.success {
+            background: #d1fae5;
+            border-color: #10b981;
+        }
+        
+        .status-box.error {
+            background: #fee2e2;
+            border-color: #ef4444;
+        }
+        
+        .status-box.info {
+            background: #dbeafe;
+            border-color: #3b82f6;
+        }
+        
+        .status-box.warning {
+            background: #fef3c7;
+            border-color: #f59e0b;
+        }
+        
+        .log-section {
+            margin-top: 25px;
+            border-top: 2px solid #e2e8f0;
+            padding-top: 20px;
+        }
+        
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .log-container {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: left;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 3px 0;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .log-timestamp {
+            color: #94a3b8;
+            margin-left: 10px;
+        }
+        
+        .log-message {
+            color: #e2e8f0;
+        }
+        
+        .log-error {
+            color: #f87171;
+        }
+        
+        .log-success {
+            color: #34d399;
+        }
+        
+        .log-warning {
+            color: #fbbf24;
+        }
+        
+        .log-info {
+            color: #60a5fa;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #475569;
+            min-width: 100px;
+        }
+        
+        .info-value {
+            color: #1e293b;
+            text-align: left;
+            flex: 1;
+        }
+        
+        .debug-section {
+            background: #fef2f2;
+            border: 2px solid #fecaca;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px 0;
+            display: none;
+        }
+        
+        .debug-section h3 {
+            color: #dc2626;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 تست آپلود فایل با Tus + JWT</h1>
+        
+        <!-- بخش سرور -->
+        <div class="server-section">
+            <h2>🌐 تنظیمات سرور</h2>
+            <div class="input-group">
+                <input type="text" id="serverUrl" value="https://localhost:7010" placeholder="آدرس سرور (مثال: https://localhost:7010)">
+            </div>
+            <div class="button-group">
+                <button onclick="testServerConnection()" class="secondary">🔍 تست اتصال</button>
+                <button onclick="showDebugInfo()" class="secondary">🐛 اطلاعات دیباگ</button>
+            </div>
+        </div>
+        
+        <!-- بخش توکن -->
+        <div class="token-section">
+            <h2>🔐 توکن JWT</h2>
+            <div style="margin-bottom: 15px;">
+                <span>وضعیت:</span>
+                <span class="token-status invalid" id="tokenStatus">نامعتبر</span>
+            </div>
+            <div class="input-group">
+                <input type="text" id="jwtTokenInput" placeholder="توکن JWT خود را اینجا paste کنید...">
+                <button onclick="setToken()">✅ ثبت توکن</button>
+                <button onclick="clearToken()" class="danger">🗑️ پاک کردن</button>
+            </div>
+            <div class="button-group">
+                <button onclick="testToken()" class="secondary">🔍 تست توکن</button>
+                <button onclick="copyToken()" id="copyTokenBtn" disabled>📋 کپی توکن</button>
+            </div>
+            <div id="tokenInfo" style="margin-top: 15px; font-size: 12px; color: #64748b; display: none;">
+                توکن معتبر است
+            </div>
+        </div>
+        
+        <!-- بخش آپلود -->
+        <div class="upload-section">
+            <h2>📁 آپلود فایل</h2>
+            
+            <div class="upload-area" id="dropArea">
+                <div class="upload-icon">📁</div>
+                <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">
+                    فایل را اینجا رها کنید
+                </div>
+                <div style="color: #666; margin-bottom: 20px;">
+                    یا برای انتخاب فایل کلیک کنید
+                </div>
+                <input type="file" id="fileInput" style="display: none;" onchange="handleFileSelect()">
+                <button onclick="document.getElementById('fileInput').click()">
+                    📂 انتخاب فایل
+                </button>
+            </div>
+            
+            <div id="fileInfo" class="file-info" style="display: none;">
+                <div class="info-row">
+                    <span class="info-label">نام فایل:</span>
+                    <span class="info-value" id="fileName"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">حجم:</span>
+                    <span class="info-value" id="fileSize"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">نوع:</span>
+                    <span class="info-value" id="fileType"></span>
+                </div>
+            </div>
+            
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar" id="progressBar">0%</div>
+            </div>
+            
+            <div class="button-group">
+                <button id="uploadBtn" onclick="startUpload()" disabled style="padding: 15px 30px; font-size: 18px;">
+                    🚀 شروع آپلود
+                </button>
+                <button onclick="clearFile()" class="danger">❌ حذف فایل</button>
+            </div>
+            
+            <div class="status-box info" id="statusBox">
+                <div>📋 دستورالعمل:</div>
+                <div style="font-size: 14px; margin-top: 10px;">
+                    1. آدرس سرور را بررسی کنید<br>
+                    2. توکن JWT را وارد کنید<br>
+                    3. فایل را انتخاب کنید<br>
+                    4. دکمه "شروع آپلود" را بزنید
+                </div>
+            </div>
+        </div>
+        
+        <!-- بخش دیباگ (مخفی) -->
+        <div class="debug-section" id="debugSection">
+            <h3>🐛 اطلاعات دیباگ</h3>
+            <div id="debugInfo"></div>
+        </div>
+        
+        <!-- بخش لاگ -->
+        <div class="log-section">
+            <div class="log-header">
+                <h2>📝 لاگ سیستم</h2>
+                <div class="button-group">
+                    <button onclick="copyLog()" class="success">📋 کپی لاگ</button>
+                    <button onclick="clearLog()" class="danger">🧹 پاک کردن لاگ</button>
+                    <button onclick="toggleLog()" class="secondary">👁️ نمایش/مخفی</button>
+                </div>
+            </div>
+            <div class="log-container" id="logContainer" style="display: block;">
+                <!-- لاگ‌ها اینجا نمایش داده می‌شوند -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // متغیرهای اصلی
+        let jwtToken = null;
+        let tokenExpiration = null;
+        let selectedFile = null;
+        let uploadUrl = null;
+        let serverBaseUrl = 'https://localhost:7010';
+        let logVisible = true;
+
+        // تابع لاگ‌نویسی پیشرفته
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString('fa-IR');
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `
+                <span class="log-timestamp">[${timestamp}]</span>
+                <span class="log-message log-${type}">${message}</span>
+            `;
+            
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // نمایش خودکار لاگ هنگام خطا یا هشدار
+            if (type === 'error' || type === 'warning') {
+                logContainer.style.display = 'block';
+                logVisible = true;
+            }
+            
+            // همچنین در console نمایش بده
+            const consoleMessage = `[${timestamp}] ${message}`;
+            switch(type) {
+                case 'error':
+                    console.error(consoleMessage);
+                    break;
+                case 'warning':
+                    console.warn(consoleMessage);
+                    break;
+                case 'success':
+                    console.log('%c' + consoleMessage, 'color: green');
+                    break;
+                default:
+                    console.log(consoleMessage);
+            }
+        }
+
+        // کپی لاگ به کلیپ‌بورد
+        function copyLog() {
+            const logContainer = document.getElementById('logContainer');
+            let logText = '';
+            
+            // جمع‌آوری تمام لاگ‌ها
+            const logEntries = logContainer.querySelectorAll('.log-entry');
+            logEntries.forEach(entry => {
+                logText += entry.textContent + '\n';
+            });
+            
+            if (!logText.trim()) {
+                logText = 'لاگی برای کپی کردن وجود ندارد.';
+            }
+            
+            navigator.clipboard.writeText(logText).then(() => {
+                addLog('✅ لاگ با موفقیت کپی شد', 'success');
+                showNotification('لاگ کپی شد!', 'success');
+            }).catch(err => {
+                addLog('❌ خطا در کپی لاگ: ' + err.message, 'error');
+            });
+        }
+
+        // نمایش نوتیفیکیشن
+        function showNotification(message, type = 'info') {
+            // ایجاد عنصر نوتیفیکیشن
+            const notification = document.createElement('div');
+            notification.className = `status-box ${type}`;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 1000;
+                min-width: 300px;
+                text-align: center;
+                animation: slideIn 0.3s ease;
+            `;
+            notification.innerHTML = message;
+            
+            document.body.appendChild(notification);
+            
+            // حذف خودکار بعد از 3 ثانیه
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // تست اتصال به سرور
+        async function testServerConnection() {
+            const serverUrl = document.getElementById('serverUrl').value.trim();
+            if (!serverUrl) {
+                addLog('❌ آدرس سرور را وارد کنید', 'error');
+                return;
+            }
+            
+            addLog('🔍 تست اتصال به سرور...', 'info');
+            
+            try {
+                // تست چندین endpoint
+const endpoints = [
+    '/',
+    '/tus',  // این اصلی‌ترین endpoint است
+    '/uploads',
+    '/api/document'
+];
+                let successfulTests = 0;
+                
+                for (const endpoint of endpoints) {
+                    try {
+                        const response = await fetch(serverUrl + endpoint, {
+                            method: 'HEAD',
+                            headers: {
+                                'Tus-Resumable': '1.0.0'
+                            }
+                        });
+                        
+                        if (response.ok || response.status === 405 || response.status === 404) {
+                            successfulTests++;
+                            addLog(`✓ ${endpoint} پاسخ داد (کد: ${response.status})`, 'success');
+                        } else {
+                            addLog(`✗ ${endpoint} خطا: ${response.status}`, 'warning');
+                        }
+                    } catch (error) {
+                        addLog(`✗ ${endpoint} خطا: ${error.message}`, 'error');
+                    }
+                    
+                    // کمی تاخیر بین تست‌ها
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                if (successfulTests > 0) {
+                    serverBaseUrl = serverUrl;
+                    addLog(`✅ سرور در دسترس است (${successfulTests}/${endpoints.length} endpoint پاسخ داد)`, 'success');
+                    showNotification(`سرور در دسترس است!`, 'success');
+                } else {
+                    addLog('❌ هیچ endpoint پاسخ نداد. سرور ممکن است در دسترس نباشد', 'error');
+                }
+                
+            } catch (error) {
+                addLog(`❌ خطا در تست اتصال: ${error.message}`, 'error');
+            }
+        }
+
+        // نمایش اطلاعات دیباگ
+        function showDebugInfo() {
+            const debugSection = document.getElementById('debugSection');
+            const debugInfo = document.getElementById('debugInfo');
+            
+            const info = `
+                <div class="info-row">
+                    <span class="info-label">آدرس سرور:</span>
+                    <span class="info-value">${document.getElementById('serverUrl').value}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">توکن تنظیم شده:</span>
+                    <span class="info-value">${jwtToken ? '✓ بله' : '✗ خیر'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">فایل انتخاب شده:</span>
+                    <span class="info-value">${selectedFile ? selectedFile.name : 'خیر'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">User Agent:</span>
+                    <span class="info-value">${navigator.userAgent}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Online Status:</span>
+                    <span class="info-value">${navigator.onLine ? 'آنلاین' : 'آفلاین'}</span>
+                </div>
+            `;
+            
+            debugInfo.innerHTML = info;
+            debugSection.style.display = 'block';
+            
+            // جمع‌آوری اطلاعات شبکه
+            fetch('https://api.ipify.org?format=json')
+                .then(response => response.json())
+                .then(data => {
+                    debugInfo.innerHTML += `
+                        <div class="info-row">
+                            <span class="info-label">IP عمومی:</span>
+                            <span class="info-value">${data.ip}</span>
+                        </div>
+                    `;
+                })
+                .catch(() => {
+                    // ignore
+                });
+        }
+
+        // توابع مدیریت توکن (مانند قبل)
+        function setToken() {
+            const tokenInput = document.getElementById('jwtTokenInput').value.trim();
+            
+            if (!tokenInput) {
+                addLog('❌ لطفاً توکن JWT را وارد کنید', 'error');
+                return;
+            }
+            
+            try {
+                // بررسی ساختار توکن
+                const parts = tokenInput.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('فرمت توکن نامعتبر است');
+                }
+                
+                jwtToken = tokenInput;
+                const tokenPayload = parseJwt(jwtToken);
+                tokenExpiration = tokenPayload.exp ? new Date(tokenPayload.exp * 1000) : null;
+                
+                // بروزرسانی UI
+                document.getElementById('tokenStatus').textContent = 'معتبر';
+                document.getElementById('tokenStatus').className = 'token-status valid';
+                document.getElementById('copyTokenBtn').disabled = false;
+                
+                // نمایش اطلاعات توکن
+                const tokenInfo = document.getElementById('tokenInfo');
+                tokenInfo.style.display = 'block';
+                tokenInfo.innerHTML = `
+                    کاربر: ${tokenPayload.sub || 'نامشخص'} | 
+                    انقضا: ${tokenExpiration ? tokenExpiration.toLocaleTimeString('fa-IR') : 'بدون انقضا'}
+                `;
+                
+                addLog(`✅ توکن تنظیم شد - کاربر: ${tokenPayload.sub || 'نامشخص'}`, 'success');
+                showNotification('توکن با موفقیت تنظیم شد!', 'success');
+                
+                checkUploadReady();
+                
+            } catch (error) {
+                addLog(`❌ خطا در توکن: ${error.message}`, 'error');
+                clearToken();
+            }
+        }
+
+        function clearToken() {
+            jwtToken = null;
+            document.getElementById('jwtTokenInput').value = '';
+            document.getElementById('tokenStatus').textContent = 'نامعتبر';
+            document.getElementById('tokenStatus').className = 'token-status invalid';
+            document.getElementById('tokenInfo').style.display = 'none';
+            document.getElementById('copyTokenBtn').disabled = true;
+            
+            addLog('🗑️ توکن پاک شد', 'info');
+            checkUploadReady();
+        }
+
+        // بقیه توابع (مانند قبل) با اصلاحات کوچک
+        function parseJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch {
+                throw new Error('توکن نامعتبر است');
+            }
+        }
+
+        function handleFileSelect() {
+            const file = document.getElementById('fileInput').files[0];
+            if (file) {
+                selectedFile = file;
+                showFileInfo(file);
+                checkUploadReady();
+                addLog(`📄 فایل انتخاب شد: ${file.name} (${formatBytes(file.size)})`, 'success');
+            }
+        }
+
+        function showFileInfo(file) {
+            document.getElementById('fileInfo').style.display = 'block';
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatBytes(file.size);
+            document.getElementById('fileType').textContent = file.type || 'نامشخص';
+        }
+
+        function clearFile() {
+            selectedFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileInfo').style.display = 'none';
+            document.getElementById('progressContainer').style.display = 'none';
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressBar').textContent = '0%';
+            
+            addLog('🗑️ فایل حذف شد', 'info');
+            checkUploadReady();
+        }
+
+        function checkUploadReady() {
+            const uploadBtn = document.getElementById('uploadBtn');
+            const statusBox = document.getElementById('statusBox');
+            
+            if (jwtToken && selectedFile) {
+                const now = new Date();
+                if (tokenExpiration && tokenExpiration < now) {
+                    statusBox.className = 'status-box warning';
+                    statusBox.innerHTML = '⚠️ توکن منقضی شده است. لطفاً توکن جدید وارد کنید';
+                    uploadBtn.disabled = true;
+                } else {
+                    statusBox.className = 'status-box success';
+                    statusBox.innerHTML = '✅ آماده آپلود! دکمه "شروع آپلود" را بزنید';
+                    uploadBtn.disabled = false;
+                }
+            } else {
+                uploadBtn.disabled = true;
+                if (!jwtToken && !selectedFile) {
+                    statusBox.className = 'status-box info';
+                    statusBox.innerHTML = '📋 لطفاً توکن JWT را وارد کرده و فایل را انتخاب کنید';
+                } else if (!jwtToken) {
+                    statusBox.className = 'status-box warning';
+                    statusBox.innerHTML = '⚠️ توکن JWT وارد نشده است';
+                } else {
+                    statusBox.className = 'status-box warning';
+                    statusBox.innerHTML = '⚠️ فایل انتخاب نشده است';
+                }
+            }
+        }
+
+
+async function startUpload() {
+    if (!selectedFile || !jwtToken) return;
+    
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const statusBox = document.getElementById('statusBox');
+    
+    uploadBtn.disabled = true;
+    progressContainer.style.display = 'block';
+    progressBar.style.width = '0%';
+    progressBar.textContent = '0%';
+    
+    statusBox.className = 'status-box info';
+    statusBox.innerHTML = '🚀 در حال شروع آپلود...';
+    
+    addLog('🚀 شروع فرآیند آپلود...', 'info');
+    
+    try {
+        const serverUrl = document.getElementById('serverUrl').value.trim();
+        const baseUrl = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl;
+        
+        addLog(`🌐 سرور: ${baseUrl}`, 'info');
+        addLog(`📁 فایل: ${selectedFile.name} (${formatBytes(selectedFile.size)})`, 'info');
+        
+        // تولید یک FileId منحصربفرد
+        const fileId = 'tus_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
+        // ساخت URL آپلود - فرض می‌کنیم Tus از این الگو استفاده می‌کند
+        uploadUrl = `${baseUrl}/tus/${fileId}`;
+        
+        addLog(`🔧 ایجاد سشن با FileId: ${fileId}`, 'info');
+        
+        // روش 1: ابتدا با POST ایجاد سشن
+        addLog('📝 در حال ایجاد سشن آپلود (POST)...', 'info');
+        
+        const createResponse = await fetchWithRetry(`${baseUrl}/tus`, {
+            method: 'POST',
+            headers: {
+                'Tus-Resumable': '1.0.0',
+                'Upload-Length': selectedFile.size.toString(),
+                'Upload-Metadata': `filename ${btoa(selectedFile.name)},contentType ${btoa(selectedFile.type || 'application/octet-stream')}`,
+                'Authorization': `Bearer ${jwtToken}`,
+                'Content-Type': 'application/offset+octet-stream'
+            }
+        }, 3);
+
+        addLog(`📥 وضعیت POST: ${createResponse.status}`, 'info');
+        
+        // اگر 201 بود اما Location نداشت، از FileId خودمان استفاده می‌کنیم
+        if (createResponse.status === 201 || createResponse.status === 204) {
+            const location = createResponse.headers.get('Location');
+            if (location) {
+                uploadUrl = location.startsWith('/') ? baseUrl + location : location;
+                addLog(`📍 آدرس از Location: ${uploadUrl}`, 'success');
+            } else {
+                addLog(`⚠️ Location header موجود نیست. استفاده از ${uploadUrl}`, 'warning');
+                
+                // تست کنیم که آیا این URL کار می‌کند
+                const headResponse = await fetch(uploadUrl, {
+                    method: 'HEAD',
+                    headers: {
+                        'Tus-Resumable': '1.0.0',
+                        'Authorization': `Bearer ${jwtToken}`
+                    }
+                });
+                
+                if (headResponse.ok) {
+                    addLog(`✅ سشن با FileId ${fileId} در سرور وجود دارد`, 'success');
+                } else if (headResponse.status === 404) {
+                    // سشن وجود ندارد، پس باید آن را ایجاد کنیم
+                    addLog('🆕 سشن وجود ندارد. ایجاد سشن جدید با PATCH...', 'info');
+                    
+                    // بعضی از پیاده‌سازی‌های Tus اجازه می‌دهند مستقیماً با PATCH سشن ایجاد کنید
+                    const patchResponse = await fetch(uploadUrl, {
+                        method: 'PATCH',
+                        headers: {
+                            'Tus-Resumable': '1.0.0',
+                            'Upload-Offset': '0',
+                            'Upload-Length': selectedFile.size.toString(),
+                            'Content-Type': 'application/offset+octet-stream',
+                            'Authorization': `Bearer ${jwtToken}`
+                        },
+                        body: new ArrayBuffer(0) // بدنۀ خالی
+                    });
+                    
+                    if (patchResponse.status === 201 || patchResponse.status === 204) {
+                        addLog('✅ سشن با PATCH ایجاد شد', 'success');
+                    } else {
+                        // روش جایگزین: استفاده از upload creation extension
+                        addLog('🔄 امتحان روش جایگزین...', 'info');
+                    }
+                }
+            }
+        } else {
+            const errorText = await createResponse.text();
+            throw new Error(`خطای ایجاد سشن: ${createResponse.status} - ${errorText}`);
+        }
+        
+        // حالا آپلود واقعی را شروع می‌کنیم
+        addLog('📤 شروع آپلود فایل...', 'success');
+        statusBox.innerHTML = '📤 در حال آپلود فایل...';
+        
+        // مرحله 2: آپلود chunkها
+        await uploadChunks(uploadUrl, selectedFile, jwtToken);
+        
+        // مرحله 3: بررسی تکمیل
+        await verifyUploadCompletion(uploadUrl, jwtToken);
+        
+        statusBox.className = 'status-box success';
+        statusBox.innerHTML = '🎉 آپلود با موفقیت تکمیل شد!';
+        
+        showNotification('آپلود موفقیت‌آمیز بود!', 'success');
+        
+    } catch (error) {
+        console.error('خطای آپلود:', error);
+        statusBox.className = 'status-box error';
+        statusBox.innerHTML = `❌ خطا: ${error.message}`;
+        
+        addLog(`❌ خطای آپلود: ${error.message}`, 'error');
+        
+        uploadBtn.disabled = false;
+    }
+}
+
+
+        // تابع آپلود chunkها با ریکوئست retry
+        async function uploadChunks(uploadUrl, file, token) {
+            let offset = 0;
+            const chunkSize = 512 * 1024; // 512KB chunks (کوچکتر برای اطمینان)
+            const totalChunks = Math.ceil(file.size / chunkSize);
+            
+            addLog(`📦 شروع آپلود ${totalChunks} بخش...`, 'info');
+            
+            for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                const start = chunkIndex * chunkSize;
+                const end = Math.min(start + chunkSize, file.size);
+                const chunk = file.slice(start, end);
+                
+                try {
+                    const response = await fetchWithRetry(uploadUrl, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/offset+octet-stream',
+                            'Upload-Offset': offset.toString(),
+                            'Tus-Resumable': '1.0.0',
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Length': (end - start).toString()
+                        },
+                        body: chunk
+                    }, 3);
+
+                    if (!response.ok) {
+                        throw new Error(`خطای chunk ${chunkIndex + 1}: ${response.status}`);
+                    }
+
+                    offset = parseInt(response.headers.get('Upload-Offset') || offset + (end - start));
+                    
+                    // بروزرسانی progress
+                    const progress = Math.round((offset / file.size) * 100);
+                    document.getElementById('progressBar').style.width = `${progress}%`;
+                    document.getElementById('progressBar').textContent = `${progress}%`;
+                    
+                    addLog(`↗️ بخش ${chunkIndex + 1}/${totalChunks} (${progress}%)`, 'info');
+                    
+                } catch (error) {
+                    addLog(`❌ خطا در آپلود بخش ${chunkIndex + 1}: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+        }
+
+        // تابع retry برای fetch
+        async function fetchWithRetry(url, options, maxRetries = 3) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    
+                    // اگر خطای شبکه بود، retry کن
+                    if (!response.ok && i < maxRetries - 1) {
+                        addLog(`⚠️ درخواست ناموفق (تلاش ${i + 1}/${maxRetries})`, 'warning');
+                        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // تاخیر تصاعدی
+                        continue;
+                    }
+                    
+                    return response;
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        throw error;
+                    }
+                    addLog(`⚠️ خطای شبکه (تلاش ${i + 1}/${maxRetries})`, 'warning');
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+                }
+            }
+            throw new Error('خطای شبکه پس از چندین تلاش');
+        }
+
+        // تابع بررسی تکمیل آپلود
+        async function verifyUploadCompletion(uploadUrl, token) {
+            addLog('🔍 بررسی تکمیل آپلود...', 'info');
+            
+            const response = await fetch(uploadUrl, {
+                method: 'HEAD',
+                headers: {
+                    'Tus-Resumable': '1.0.0',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const uploadLength = response.headers.get('Upload-Length');
+                const uploadOffset = response.headers.get('Upload-Offset');
+                
+                if (uploadLength && uploadOffset && parseInt(uploadLength) === parseInt(uploadOffset)) {
+                    addLog('✅ آپلود کامل شد! فایل در دیتابیس ذخیره شد.', 'success');
+                    return true;
+                } else {
+                    addLog('⚠️ آپلود کامل نشده است', 'warning');
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        // توابع کمکی
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        function toggleLog() {
+            const logContainer = document.getElementById('logContainer');
+            logVisible = !logVisible;
+            logContainer.style.display = logVisible ? 'block' : 'none';
+        }
+
+        function clearLog() {
+            document.getElementById('logContainer').innerHTML = '';
+            addLog('🧹 لاگ پاک شد', 'info');
+        }
+
+        // توابع دیگر (copyToken, testToken, etc.) که قبلاً داشتیم
+        function copyToken() {
+            if (!jwtToken) return;
+            navigator.clipboard.writeText(jwtToken).then(() => {
+                addLog('✅ توکن کپی شد', 'success');
+                showNotification('توکن کپی شد!', 'success');
+            });
+        }
+
+        function testToken() {
+            if (!jwtToken) {
+                addLog('❌ توکنی تنظیم نشده است', 'error');
+                return;
+            }
+            
+            try {
+                const payload = parseJwt(jwtToken);
+                const now = new Date();
+                const exp = payload.exp ? new Date(payload.exp * 1000) : null;
+                
+                let message = '🔍 نتایج تست توکن:\n\n';
+                message += `👤 کاربر: ${payload.sub || 'نامشخص'}\n`;
+                if (payload.email) message += `📧 ایمیل: ${payload.email}\n`;
+                if (payload.roles) message += `👥 نقش‌ها: ${payload.roles.join(', ')}\n`;
+                
+                if (exp) {
+                    const diff = exp - now;
+                    const minutes = Math.floor(diff / (1000 * 60));
+                    message += `⏰ انقضا: ${exp.toLocaleTimeString('fa-IR')}\n`;
+                    message += `⏳ مانده: ${minutes} دقیقه\n`;
+                    message += minutes > 0 ? '✅ وضعیت: معتبر\n' : '⚠️ وضعیت: منقضی شده\n';
+                } else {
+                    message += '⏰ انقضا: بدون انقضا\n✅ وضعیت: معتبر\n';
+                }
+                
+                alert(message);
+                addLog('🔍 تست توکن انجام شد', 'info');
+                
+            } catch (error) {
+                addLog(`❌ خطا در تست توکن: ${error.message}`, 'error');
+            }
+        }
+
+        // Drag & Drop events
+        const dropArea = document.getElementById('dropArea');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dropArea.classList.add('dragover');
+        }
+
+        function unhighlight() {
+            dropArea.classList.remove('dragover');
+        }
+
+        dropArea.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                document.getElementById('fileInput').files = files;
+                handleFileSelect();
+            }
+        });
+
+        // بارگذاری اولیه
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('📱 سیستم آماده است', 'info');
+            
+            // بررسی URL برای token
+            const urlParams = new URLSearchParams(window.location.search);
+            const tokenFromUrl = urlParams.get('token');
+            if (tokenFromUrl) {
+                document.getElementById('jwtTokenInput').value = tokenFromUrl;
+                setToken();
+                addLog('🔗 توکن از URL دریافت شد', 'info');
+            }
+        });
+
+        // اضافه کردن استایل برای انیمیشن
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { top: -100px; opacity: 0; }
+                to { top: 20px; opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { top: 20px; opacity: 1; }
+                to { top: -100px; opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
