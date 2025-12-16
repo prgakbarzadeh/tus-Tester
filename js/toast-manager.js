@@ -1,80 +1,60 @@
-// toast-manager.js - Toast Notification Manager
+// Toast Notification Manager
 class ToastManager {
     constructor() {
         this.toastElement = $('#notificationToast');
-        this.toast = new bootstrap.Toast(this.toastElement[0], {
-            delay: 3000,
-            autohide: true
-        });
-        
-        // Initialize toast
-        this.initialize();
-    }
-
-    initialize() {
-        // Add close button event listener
-        this.toastElement.find('.btn-close').on('click', () => {
-            this.toast.hide();
+        this.toast = new bootstrap.Toast(this.toastElement, {
+            autohide: true,
+            delay: 3000
         });
     }
 
-    show(message, type = 'info', title = null) {
-        const colors = {
-            success: { 
-                bg: '#10b981', 
-                icon: 'bi-check-circle',
-                titleKey: 'Success'
-            },
-            error: { 
-                bg: '#ef4444', 
-                icon: 'bi-exclamation-circle',
-                titleKey: 'Error'
-            },
-            warning: { 
-                bg: '#f59e0b', 
-                icon: 'bi-exclamation-triangle',
-                titleKey: 'Warning'
-            },
-            info: { 
-                bg: '#3b82f6', 
-                icon: 'bi-info-circle',
-                titleKey: 'Info'
-            }
-        };
-
-        const config = colors[type] || colors.info;
-        const time = new Date().toLocaleTimeString('en-US', { 
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+    show(title, message, type = 'info') {
+        const toastHeader = this.toastElement.find('.toast-header');
         
-        if (!title) {
-            // Use i18n if available
-            title = window.i18n ? i18n.t(`messages.${type}`) : config.titleKey;
+        // Set type-based styling
+        toastHeader.removeClass('bg-primary bg-success bg-danger bg-warning bg-info');
+        switch(type) {
+            case 'success':
+                toastHeader.addClass('bg-success');
+                break;
+            case 'error':
+                toastHeader.addClass('bg-danger');
+                break;
+            case 'warning':
+                toastHeader.addClass('bg-warning');
+                break;
+            case 'info':
+                toastHeader.addClass('bg-info');
+                break;
+            default:
+                toastHeader.addClass('bg-primary');
         }
 
-        $('#toastTitle').html(`<i class="bi ${config.icon} me-2"></i>${title}`);
-        $('#toastTime').text(time);
+        // Set content
+        $('#toastTitle').text(title);
         $('#toastMessage').text(message);
-        $('.toast-header').css('background-color', config.bg);
         
+        // Set current time
+        const now = new Date();
+        $('#toastTime').text(now.toLocaleTimeString('fa-IR', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        }));
+
+        // Show toast
         this.toast.show();
     }
+}
 
-    success(message, title = null) {
-        this.show(message, 'success', title);
-    }
+// Initialize toast manager globally
+let toastManager;
+$(document).ready(function() {
+    toastManager = new ToastManager();
+});
 
-    error(message, title = null) {
-        this.show(message, 'error', title);
-    }
-
-    warning(message, title = null) {
-        this.show(message, 'warning', title);
-    }
-
-    info(message, title = null) {
-        this.show(message, 'info', title);
+// Global function to show notifications
+function showNotification(title, message, type = 'info') {
+    if (toastManager) {
+        toastManager.show(title, message, type);
     }
 }

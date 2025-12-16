@@ -1,20 +1,19 @@
-// log-manager.js - Log Management System
+// log-manager.js - Log Management System (English logs + Global log function)
+
 class LogManager {
     constructor() {
         this.container = $('#logContainer');
-        this.maxLogs = 1000; // Maximum number of logs to keep
+        this.maxLogs = 1000;
         this.logs = [];
         
-        // Initialize log container
         this.initialize();
     }
 
     initialize() {
-        // Clear any existing logs
         this.container.empty();
         
-        // Add initial log message
-        this.add('Log system initialized', 'info');
+        this.add('=== Tus Client Tester v1.0 Started ===', 'success');
+        this.add('Log system ready - All operations will be logged', 'info');
     }
 
     add(message, type = 'info') {
@@ -25,7 +24,6 @@ class LogManager {
             second: '2-digit'
         });
         
-        // Store log
         const logEntry = {
             timestamp,
             message,
@@ -35,12 +33,10 @@ class LogManager {
         
         this.logs.push(logEntry);
         
-        // Keep only maxLogs entries
         if (this.logs.length > this.maxLogs) {
             this.logs.shift();
         }
         
-        // Create and add log element
         const logElement = $(`
             <div class="log-entry" data-log-id="${logEntry.id}">
                 <span class="log-timestamp">[${timestamp}]</span>
@@ -49,11 +45,8 @@ class LogManager {
         `);
         
         this.container.append(logElement);
-        
-        // Auto-scroll to bottom
         this.scrollToBottom();
         
-        // Also log to console
         console.log(`[${timestamp}] [${type.toUpperCase()}] ${message}`);
         
         return logEntry.id;
@@ -66,15 +59,12 @@ class LogManager {
     clear() {
         this.container.empty();
         this.logs = [];
-        
-        // Don't log "Logs cleared" message to avoid recursion
         console.log('Logs cleared');
+        this.add('Log panel cleared by user', 'info');
     }
 
     copy() {
-        let logText = '';
-        
-        // Build log text from stored logs
+        let logText = 'Tus Tester Logs:\n\n';
         this.logs.forEach(log => {
             logText += `[${log.timestamp}] ${log.message}\n`;
         });
@@ -83,33 +73,31 @@ class LogManager {
             logText = 'No logs available.';
         }
         
-        // Use Clipboard API
         navigator.clipboard.writeText(logText).then(() => {
-            // Toast will be shown from app.js
-        }).catch(err => {
-            console.error('Failed to copy logs:', err);
+            showNotification('Copied', 'Logs copied to clipboard', 'success');
+        }).catch(() => {
+            showNotification('Error', 'Failed to copy logs', 'error');
         });
-    }
-
-    getLogs() {
-        return this.logs;
-    }
-
-    getLogCount() {
-        return this.logs.length;
-    }
-
-    filterByType(type) {
-        return this.logs.filter(log => log.type === type);
-    }
-
-    search(keyword) {
-        return this.logs.filter(log => 
-            log.message.toLowerCase().includes(keyword.toLowerCase()) ||
-            log.timestamp.includes(keyword)
-        );
     }
 }
 
-// Create global log manager instance
+// Global instance
 const logger = new LogManager();
+
+// === IMPORTANT: Make log() globally available ===
+window.log = function(message, type = 'info') {
+    if (logger && typeof logger.add === 'function') {
+        logger.add(message, type);
+    } else {
+        console.log('[LOG FALLBACK] ' + message);
+    }
+};
+
+// Global functions for buttons
+function copyLog() {
+    logger.copy();
+}
+
+function clearLog() {
+    logger.clear();
+}

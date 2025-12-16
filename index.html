@@ -1,15 +1,17 @@
 <!DOCTYPE html>
-<html lang="fa" dir="ltr">
+<html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tus File Upload Tool</title>
+    <title>ابزار آپلود فایل Tus</title>
     <!-- Bootstrap 5.3.0 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Tus.js Client Library (مهم - فقط یک بار) -->
+    <script src="https://cdn.jsdelivr.net/npm/tus-js-client@latest/dist/tus.min.js"></script>
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -19,20 +21,12 @@
         <div class="header">
             <div class="header-content">
                 <div>
-                    <h1><i class="bi bi-cloud-arrow-up-fill"></i> <span data-i18n="app.title">Tus File Upload Tool</span></h1>
-                    <div class="subtitle" data-i18n="app.subtitle">Generic Tus Protocol File Upload Client</div>
+                    <h1><i class="bi bi-cloud-arrow-up-fill"></i> <span data-i18n="app.title">ابزار آپلود فایل Tus</span></h1>
+                    <div class="subtitle" data-i18n="app.subtitle">کلاینت عمومی آپلود فایل با پروتکل Tus</div>
                 </div>
                 <div class="d-flex align-items-center gap-3">
-                    <div class="language-switcher">
-                        <button class="btn btn-sm btn-outline-light" onclick="switchLanguage('en')">
-                            <i class="bi bi-globe"></i> English
-                        </button>
-                        <button class="btn btn-sm btn-outline-light" onclick="switchLanguage('fa')">
-                            <i class="bi bi-globe"></i> فارسی
-                        </button>
-                    </div>
-                    <span class="badge bg-light text-dark">v2.0.0</span>
-                    <span class="badge bg-info">Tus v1.0.0</span>
+                    <span class="badge bg-light text-dark">tusdotnet v2.11.0</span>
+                    <span class="badge bg-info">Tus Tester v1.0.0</span>
                 </div>
             </div>
         </div>
@@ -44,16 +38,16 @@
                 <!-- Instructions Card -->
                 <div class="card m-3">
                     <div class="card-header">
-                        <h3 class="card-title"><i class="bi bi-info-circle"></i> <span data-i18n="instructions.title">Instructions</span></h3>
+                        <h3 class="card-title"><i class="bi bi-info-circle"></i> <span data-i18n="instructions.title">راهنما</span></h3>
                     </div>
                     <div class="card-body">
-                        <ol class="instructions-list" data-i18n="instructions.list">
-                            <li>Enter Tus server URL (e.g., https://localhost:7010)</li>
-                            <li>Paste your JWT token (Bearer authentication)</li>
-                            <li>Select or drag & drop a file</li>
-                            <li>Click "Start Upload" to begin</li>
-                            <li>Use "Stop Upload" to cancel if needed</li>
-                            <li>Monitor progress in logs panel</li>
+                        <ol class="instructions-list">
+                            <li>آدرس سرور Tus را وارد کنید (مثل https://localhost:7010/Tus)</li>
+                            <li>توکن JWT خود را بچسبانید (احراز هویت Bearer)</li>
+                            <li>فایل را انتخاب یا بکشید و رها کنید</li>
+                            <li>روی «شروع آپلود» کلیک کنید</li>
+                            <li>در صورت نیاز از «توقف آپلود» برای لغو استفاده کنید</li>
+                            <li>پیشرفت را در پنل لاگ‌ها مشاهده کنید</li>
                         </ol>
                     </div>
                 </div>
@@ -62,12 +56,12 @@
                 <div class="card m-3 flex-grow-1 d-flex flex-column">
                     <div class="card-header">
                         <div class="d-flex justify-content-between align-items-center">
-                            <h3 class="card-title"><i class="bi bi-terminal"></i> <span data-i18n="logs.title">System Logs</span></h3>
+                            <h3 class="card-title"><i class="bi bi-terminal"></i> <span data-i18n="logs.title">لاگ‌های سیستم</span></h3>
                             <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-primary" onclick="copyLog()" title="Copy logs">
+                                <button class="btn btn-outline-primary" onclick="copyLog()" title="کپی لاگ‌ها">
                                     <i class="bi bi-copy"></i>
                                 </button>
-                                <button class="btn btn-outline-danger" onclick="clearLog()" title="Clear logs">
+                                <button class="btn btn-outline-danger" onclick="clearLog()" title="پاک کردن لاگ‌ها">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
@@ -75,7 +69,7 @@
                     </div>
                     <div class="card-body p-0 flex-grow-1">
                         <div class="log-container" id="logContainer">
-                            <!-- Logs will appear here -->
+                            <!-- لاگ‌ها اینجا نمایش داده می‌شوند -->
                         </div>
                     </div>
                 </div>
@@ -86,20 +80,20 @@
                 <!-- Server Settings Card -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h3 class="card-title"><i class="bi bi-server"></i> <span data-i18n="server.title">Server Configuration</span></h3>
+                        <h3 class="card-title"><i class="bi bi-server"></i> <span data-i18n="server.title">پیکربندی سرور</span></h3>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label for="serverUrl" class="form-label" data-i18n="server.urlLabel">Tus Server URL</label>
+                            <label for="serverUrl" class="form-label" data-i18n="server.urlLabel">آدرس سرور Tus</label>
                             <div class="input-group">
                                 <input type="url" class="form-control" id="serverUrl" 
-                                       value="https://localhost:7010" 
+                                       value="https://localhost:7010/tus" 
                                        placeholder="https://your-tus-server.com">
                                 <button class="btn btn-primary" type="button" onclick="testServerConnection()">
-                                    <i class="bi bi-wifi"></i> <span data-i18n="server.testButton">Test Connection</span>
+                                    <i class="bi bi-wifi"></i> <span data-i18n="server.testButton">تست اتصال</span>
                                 </button>
                             </div>
-                            <div class="form-text" data-i18n="server.urlHelp">Enter the base URL of your Tus server</div>
+                            <div class="form-text" data-i18n="server.urlHelp">آدرس پایه سرور Tus خود را وارد کنید</div>
                         </div>
                     </div>
                 </div>
@@ -108,30 +102,29 @@
                 <div class="card mb-4">
                     <div class="card-header">
                         <div class="d-flex justify-content-between align-items-center">
-                            <h3 class="card-title"><i class="bi bi-key"></i> <span data-i18n="token.title">Authentication Token</span></h3>
-                            <span class="token-status invalid" id="tokenStatus" data-i18n="token.noToken">No Token</span>
+                            <h3 class="card-title"><i class="bi bi-key"></i> <span data-i18n="token.title">توکن احراز هویت</span></h3>
+                            <span class="token-status invalid" id="tokenStatus" data-i18n="token.noToken">بدون توکن</span>
                         </div>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label for="jwtTokenInput" class="form-label" data-i18n="token.label">JWT Bearer Token</label>
+                            <label for="jwtTokenInput" class="form-label" data-i18n="token.label">توکن JWT Bearer</label>
                             <div class="input-group mb-2">
                                 <textarea class="form-control" id="jwtTokenInput" rows="4" 
-                                          data-i18n-placeholder="token.placeholder" 
-                                          placeholder="Paste your JWT token here..."></textarea>
+                                          placeholder="توکن JWT خود را اینجا بچسبانید..."></textarea>
                             </div>
                             <div class="btn-group w-100">
                                 <button class="btn btn-success" onclick="setToken()">
-                                    <i class="bi bi-check-lg"></i> <span data-i18n="token.setButton">Set Token</span>
+                                    <i class="bi bi-check-lg"></i> <span data-i18n="token.setButton">تنظیم توکن</span>
                                 </button>
                                 <button class="btn btn-outline-secondary" onclick="clearToken()">
-                                    <i class="bi bi-x-lg"></i> <span data-i18n="token.clearButton">Clear</span>
+                                    <i class="bi bi-x-lg"></i> <span data-i18n="token.clearButton">پاک کردن</span>
                                 </button>
                                 <button class="btn btn-outline-primary" onclick="pasteToken()">
-                                    <i class="bi bi-clipboard-plus"></i> <span data-i18n="token.pasteButton">Paste</span>
+                                    <i class="bi bi-clipboard-plus"></i> <span data-i18n="token.pasteButton">چسباندن</span>
                                 </button>
                                 <button class="btn btn-outline-info" onclick="copyToken()">
-                                    <i class="bi bi-clipboard-check"></i> <span data-i18n="token.copyButton">Copy</span>
+                                    <i class="bi bi-clipboard-check"></i> <span data-i18n="token.copyButton">کپی</span>
                                 </button>
                             </div>
                         </div>
@@ -141,7 +134,7 @@
                 <!-- File Upload Card -->
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title"><i class="bi bi-cloud-upload"></i> <span data-i18n="upload.title">File Upload</span></h3>
+                        <h3 class="card-title"><i class="bi bi-cloud-upload"></i> <span data-i18n="upload.title">آپلود فایل</span></h3>
                     </div>
                     <div class="card-body">
                         <!-- Drag & Drop Area -->
@@ -149,26 +142,26 @@
                             <div class="mb-3" style="font-size: 48px; color: #22c55e;">
                                 <i class="bi bi-cloud-arrow-up"></i>
                             </div>
-                            <h5 data-i18n="upload.dragDrop">Drag & Drop File Here</h5>
-                            <p class="text-muted mb-3" data-i18n="upload.browseText">or click to browse</p>
+                            <h5 data-i18n="upload.dragDrop">فایل را اینجا بکشید و رها کنید</h5>
+                            <p class="text-muted mb-3" data-i18n="upload.browseText">یا برای انتخاب کلیک کنید</p>
                             <input type="file" id="fileInput" class="d-none">
                             <button class="btn btn-success" id="selectFileBtn">
-                                <i class="bi bi-folder2-open"></i> <span data-i18n="upload.browseButton">Browse Files</span>
+                                <i class="bi bi-folder2-open"></i> <span data-i18n="upload.browseButton">انتخاب فایل</span>
                             </button>
                         </div>
                         
                         <!-- File Info -->
                         <div class="file-info d-none" id="fileInfo">
                             <div class="file-info-item">
-                                <span class="file-info-label" data-i18n="upload.fileName">File Name:</span>
+                                <span class="file-info-label" data-i18n="upload.fileName">نام فایل:</span>
                                 <span id="fileName">-</span>
                             </div>
                             <div class="file-info-item">
-                                <span class="file-info-label" data-i18n="upload.fileSize">Size:</span>
+                                <span class="file-info-label" data-i18n="upload.fileSize">حجم:</span>
                                 <span id="fileSize">-</span>
                             </div>
                             <div class="file-info-item">
-                                <span class="file-info-label" data-i18n="upload.fileType">Type:</span>
+                                <span class="file-info-label" data-i18n="upload.fileType">نوع:</span>
                                 <span id="fileType">-</span>
                             </div>
                         </div>
@@ -176,31 +169,31 @@
                         <!-- Upload Progress -->
                         <div class="progress-container d-none" id="progressContainer">
                             <div class="d-flex justify-content-between mb-2 small">
-                                <span data-i18n="upload.progress">Upload Progress</span>
-                                <span id="progressPercent">0%</span>
+                                <span data-i18n="upload.progress">پیشرفت آپلود</span>
+                                <span id="progressPercent">۰٪</span>
                             </div>
                             <div class="progress">
                                 <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
-                                     role="progressbar" style="width: 0%">0%</div>
+                                     role="progressbar" style="width: 0%">۰٪</div>
                             </div>
                         </div>
                         
                         <!-- Status Box -->
                         <div class="status-box info" id="statusBox">
-                            <div class="fw-bold mb-1" data-i18n="status.title">System Status</div>
-                            <div class="small" data-i18n="status.waiting">Waiting for configuration...</div>
+                            <div class="fw-bold mb-1" data-i18n="status.title">وضعیت سیستم</div>
+                            <div class="small">در انتظار پیکربندی...</div>
                         </div>
                         
                         <!-- Action Buttons -->
                         <div class="btn-group w-100">
                             <button id="uploadBtn" class="btn btn-primary" onclick="startUpload()" disabled>
-                                <i class="bi bi-play-circle"></i> <span data-i18n="upload.startButton">Start Upload</span>
+                                <i class="bi bi-play-circle"></i> <span data-i18n="upload.startButton">شروع آپلود</span>
                             </button>
                             <button id="stopBtn" class="btn btn-danger" onclick="stopUpload()" disabled>
-                                <i class="bi bi-stop-circle"></i> <span data-i18n="upload.stopButton">Stop Upload</span>
+                                <i class="bi bi-stop-circle"></i> <span data-i18n="upload.stopButton">توقف آپلود</span>
                             </button>
                             <button class="btn btn-outline-warning" onclick="clearFile()">
-                                <i class="bi bi-x-circle"></i> <span data-i18n="upload.clearButton">Clear File</span>
+                                <i class="bi bi-x-circle"></i> <span data-i18n="upload.clearButton">پاک کردن فایل</span>
                             </button>
                         </div>
                     </div>
@@ -212,12 +205,12 @@
         <div class="footer">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="text-muted">
-                    <small><span data-i18n="footer.copyright">Tus File Upload Tool</span> &copy; 2024</small>
+                    <small><span data-i18n="footer.copyright">ابزار آپلود فایل Tus</span> &copy; ۲۰۲۴</small>
                 </div>
                 <div>
                     <small class="text-muted">
-                        <span id="connectionStatus" class="badge bg-secondary" data-i18n="status.offline">Offline</span>
-                        <span class="ms-2" id="currentTime">00:00:00</span>
+                        <span id="connectionStatus" class="badge bg-secondary" data-i18n="status.offline">آفلاین</span>
+                        <span class="ms-2" id="currentTime">۰۰:۰۰:۰۰</span>
                     </small>
                 </div>
             </div>
@@ -228,22 +221,20 @@
     <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100">
         <div id="notificationToast" class="toast border-0" role="alert" aria-live="assertive" aria-atomic="true">
             <div class="toast-header bg-primary text-white">
-                <strong class="me-auto" id="toastTitle">Notification</strong>
-                <small id="toastTime">just now</small>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                <strong class="me-auto" id="toastTitle">اعلان</strong>
+                <small id="toastTime">همین حالا</small>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="بستن"></button>
             </div>
             <div class="toast-body" id="toastMessage">
-                Message content here
+                محتوای پیام اینجا نمایش داده می‌شود
             </div>
         </div>
     </div>
 
-    <!-- JavaScript Files -->
-    <script src="js/i18n.js"></script>
+    <!-- JavaScript Files - ترتیب خیلی مهم است! -->
     <script src="js/toast-manager.js"></script>
-    <script src="js/log-manager.js"></script>
-    <script src="js/app.js"></script>
-    
+    <script src="js/log-manager.js"></script> <!-- اول لاگ منیجر -->
+    <script src="js/app.js"></script> <!-- بعد اپ اصلی -->
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
