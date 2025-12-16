@@ -16,12 +16,17 @@ class I18n {
             return true;
         } catch (error) {
             console.error(`Failed to load language ${lang}:`, error);
+            
+            // Fallback to default English
+            if (lang !== 'en') {
+                return await this.loadLanguage('en');
+            }
             return false;
         }
     }
 
     async setLanguage(lang) {
-        if (lang === this.currentLang) return;
+        if (lang === this.currentLang && this.translations[lang]) return true;
         
         // Load language if not already loaded
         if (!this.translations[lang]) {
@@ -38,6 +43,9 @@ class I18n {
         
         // Apply translations
         this.applyTranslations();
+        
+        // Update localStorage
+        localStorage.setItem('preferredLanguage', lang);
         
         return true;
     }
@@ -63,6 +71,15 @@ class I18n {
             }
         });
 
+        // Translate placeholder attributes
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+            const key = element.getAttribute('data-i18n-placeholder');
+            const translation = this.getTranslation(key, langData);
+            if (translation) {
+                element.placeholder = translation;
+            }
+        });
+
         // Translate title
         if (langData.app && langData.app.title) {
             document.title = langData.app.title;
@@ -84,6 +101,11 @@ class I18n {
             } else {
                 return key; // Return key if translation not found
             }
+        }
+        
+        // Handle arrays (for lists)
+        if (Array.isArray(result)) {
+            return result.join('\n');
         }
         
         return typeof result === 'string' ? result : key;
@@ -118,8 +140,13 @@ const i18n = new I18n();
 async function switchLanguage(lang) {
     const success = await i18n.setLanguage(lang);
     if (success) {
-        // Save preference to localStorage
-        localStorage.setItem('preferredLanguage', lang);
+        // Show toast notification
+        if (window.app && window.app.toast) {
+            const message = lang === 'en' ? 
+                'Language switched to English' : 
+                'زبان به فارسی تغییر یافت';
+            app.toast.show(message, 'success', 'Language');
+        }
         
         // Update UI if needed
         updateUIForLanguage(lang);

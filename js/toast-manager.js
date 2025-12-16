@@ -78,6 +78,3 @@ class ToastManager {
         this.show(message, 'info', title);
     }
 }
-
-// Create global toast instance
-const toast = new ToastManager();

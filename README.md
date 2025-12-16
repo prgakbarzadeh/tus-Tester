@@ -9,8 +9,10 @@
 
 ## پارامترهای URL
 
-- `?server=https://your-server.com` - تنظیم خودکار آدرس سرور
-- `?token=your-jwt-token` - تنظیم خودکار توکن
+- تنظیم خودکار آدرس سرور
+- `?server=https://your-server.com`
+- تنظیم خودکار توکن
+- `?token=your-jwt-token`
 
 ## وابستگی‌ها
 
@@ -22,9 +24,9 @@
 
 ## منابع
 
-https://tus.io/
-https://github.com/tus
-https://github.com/tusdotnet/tusdotnet
+- https://tus.io/
+- https://github.com/tus
+- https://github.com/tusdotnet/tusdotnet
 
 
 ## مجوز

@@ -85,15 +85,9 @@ class LogManager {
         
         // Use Clipboard API
         navigator.clipboard.writeText(logText).then(() => {
-            if (window.toast) {
-                const message = window.i18n ? i18n.t('messages.logsCopied') : 'Logs copied to clipboard';
-                toast.success(message);
-            }
+            // Toast will be shown from app.js
         }).catch(err => {
             console.error('Failed to copy logs:', err);
-            if (window.toast) {
-                toast.error('Failed to copy logs');
-            }
         });
     }
 

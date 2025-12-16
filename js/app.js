@@ -10,6 +10,9 @@ class TusUploadApp {
             serverUrl: 'https://localhost:7010'
         };
 
+        // Initialize toast first
+        this.toast = new ToastManager();
+        
         this.initialize();
     }
 
@@ -36,513 +39,281 @@ class TusUploadApp {
         this.exposeMethods();
     }
 
-    setupEventListeners() {
-        // File input change
-        $('#selectFileBtn').click(() => $('#fileInput').click());
-        
-        $('#fileInput').change((e) => this.handleFileSelect(e));
-        
-        // Server URL change
-        $('#serverUrl').on('input', () => {
-            this.state.serverUrl = $('#serverUrl').val().trim();
-        });
-        
-        // Token input change
-        $('#jwtTokenInput').on('input', () => {
-            this.updateTokenStatus();
-        });
-        
-        // Drag and drop
-        this.setupDragAndDrop();
-        
-        // Online/offline detection
-        window.addEventListener('online', () => this.updateConnectionStatus(true));
-        window.addEventListener('offline', () => this.updateConnectionStatus(false));
-        
-        // Before unload warning
-        window.addEventListener('beforeunload', (e) => {
-            if (this.state.isUploading) {
-                e.preventDefault();
-                e.returnValue = 'Upload in progress. Are you sure you want to leave?';
-            }
-        });
-    }
-
-    setupDragAndDrop() {
-        const dropArea = $('#dropArea');
-        
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropArea.on(eventName, this.preventDefaults);
-        });
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropArea.on(eventName, () => dropArea.addClass('dragover'));
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropArea.on(eventName, () => dropArea.removeClass('dragover'));
-        });
-
-        dropArea.on('drop', (e) => this.handleFileDrop(e));
-    }
-
-    preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    // File Management
-    handleFileSelect(event) {
-        const file = event.target.files[0];
-        if (file) {
-            this.state.selectedFile = file;
-            this.showFileInfo(file);
-            this.updateUI();
-            
-            const message = window.i18n ? 
-                i18n.t('messages.fileSelected', { filename: file.name }) : 
-                `File selected: ${file.name}`;
-            
-            logger.add(message, 'success');
-            toast.success(message);
-        }
-    }
-
-    handleFileDrop(event) {
-        const files = event.originalEvent.dataTransfer.files;
-        if (files.length > 0) {
-            $('#fileInput').prop('files', files);
-            $('#fileInput').trigger('change');
-        }
-    }
-
-    showFileInfo(file) {
-        $('#fileInfo').removeClass('d-none');
-        $('#fileName').text(file.name);
-        $('#fileSize').text(this.formatBytes(file.size));
-        $('#fileType').text(file.type || 'Unknown');
-    }
-
-    clearFile() {
-        if (this.state.selectedFile) {
-            const fileName = this.state.selectedFile.name;
-            this.state.selectedFile = null;
-            $('#fileInput').val('');
-            $('#fileInfo').addClass('d-none');
-            $('#progressContainer').addClass('d-none');
-            $('#progressBar').css('width', '0%').text('0%');
-            this.updateUI();
-            
-            const message = window.i18n ? 
-                i18n.t('messages.fileCleared') : 
-                `File cleared: ${fileName}`;
-            
-            logger.add(message, 'info');
-            toast.info(message);
-        }
-    }
-
-    // Token Management
-    async setToken() {
-        const tokenInput = $('#jwtTokenInput').val().trim();
-        
-        if (!tokenInput) {
-            toast.warning('Please enter a token', 'Token');
-            return;
-        }
-        
-        try {
-            // Validate token format
-            const parts = tokenInput.split('.');
-            if (parts.length !== 3) {
-                throw new Error('Invalid JWT format');
-            }
-            
-            this.state.jwtToken = tokenInput;
-            
-            // Update UI with animation
-            $('#tokenStatus')
-                .text('Valid')
-                .removeClass('invalid')
-                .addClass('valid')
-                .css('transform', 'scale(1.1)');
-            
-            setTimeout(() => {
-                $('#tokenStatus').css('transform', 'scale(1)');
-            }, 300);
-            
-            // Log token info
-            try {
-                const payload = this.parseJwt(tokenInput);
-                const userId = payload.sub || payload.UserID || payload.email || 'Unknown';
-                const message = window.i18n ? 
-                    i18n.t('messages.tokenSet') : 
-                    `Token set for user: ${userId}`;
-                
-                logger.add(message, 'success');
-                toast.success(message);
-            } catch {
-                const message = window.i18n ? 
-                    i18n.t('messages.tokenSet') : 
-                    'Token set successfully';
-                
-                logger.add(message, 'info');
-                toast.success(message);
-            }
-            
-            this.updateUI();
-            
-        } catch (error) {
-            const message = window.i18n ? 
-                i18n.t('messages.tokenInvalid') : 
-                'Invalid token format';
-            
-            logger.add(`${message}: ${error.message}`, 'error');
-            toast.error(message, 'Token Error');
-            this.clearToken();
-        }
-    }
-
-    clearToken() {
-        this.state.jwtToken = null;
-        $('#jwtTokenInput').val('');
-        $('#tokenStatus').text('No Token').removeClass('valid').addClass('invalid');
-        
-        const message = window.i18n ? 
-            i18n.t('messages.tokenCleared') : 
-            'Token cleared';
-        
-        logger.add(message, 'info');
-        this.updateUI();
-    }
-
-    async pasteToken() {
-        try {
-            const text = await navigator.clipboard.readText();
-            if (text.trim()) {
-                $('#jwtTokenInput').val(text.trim());
-                toast.info('Token pasted from clipboard', 'Paste');
-            }
-        } catch (error) {
-            console.error('Failed to read clipboard:', error);
-            toast.error('Failed to read clipboard. Please paste manually.', 'Paste Error');
-        }
-    }
-
-    copyToken() {
-        const token = $('#jwtTokenInput').val().trim();
-        if (!token) {
-            toast.warning('No token to copy', 'Copy');
-            return;
-        }
-        
-        navigator.clipboard.writeText(token).then(() => {
-            toast.success('Token copied to clipboard', 'Copy');
-        }).catch(error => {
-            console.error('Failed to copy token:', error);
-            toast.error('Failed to copy token', 'Copy Error');
-        });
-    }
-
-    updateTokenStatus() {
-        const token = $('#jwtTokenInput').val().trim();
-        if (!token) {
-            $('#tokenStatus').text('No Token').removeClass('valid').addClass('invalid');
-        } else {
-            try {
-                const parts = token.split('.');
-                if (parts.length === 3) {
-                    $('#tokenStatus').text('Valid').removeClass('invalid').addClass('valid');
-                } else {
-                    $('#tokenStatus').text('Invalid').removeClass('valid').addClass('invalid');
-                }
-            } catch {
-                $('#tokenStatus').text('Invalid').removeClass('valid').addClass('invalid');
-            }
-        }
-    }
-
-    // Server Connection
-    async testServerConnection() {
-        const serverUrl = $('#serverUrl').val().trim();
-        if (!serverUrl) {
-            toast.warning('Please enter server URL', 'Server');
-            return;
-        }
-        
-        logger.add(`Testing connection to: ${serverUrl}`, 'info');
-        
-        try {
-            const response = await fetch(serverUrl + '/tus', {
-                method: 'HEAD',
-                headers: { 'Tus-Resumable': '1.0.0' }
-            });
-            
-            if (response.ok || response.status === 405) {
-                this.state.serverUrl = serverUrl;
-                
-                const message = window.i18n ? 
-                    i18n.t('messages.serverTestSuccess') : 
-                    'Server connection successful';
-                
-                logger.add(message, 'success');
-                toast.success(message, 'Connection');
-                this.updateConnectionStatus(true);
-                
-                // Save server URL
-                localStorage.setItem('tusServerUrl', serverUrl);
-                
-            } else {
-                const message = window.i18n ? 
-                    i18n.t('messages.serverTestError') : 
-                    `Server error: ${response.status}`;
-                
-                logger.add(message, 'warning');
-                toast.warning(message, 'Connection');
-                this.updateConnectionStatus(false);
-            }
-        } catch (error) {
-            const message = window.i18n ? 
-                i18n.t('messages.serverTestError') : 
-                `Connection failed: ${error.message}`;
-            
-            logger.add(message, 'error');
-            toast.error(message, 'Connection Error');
-            this.updateConnectionStatus(false);
-        }
-    }
-
-    // Upload Functions
-    async startUpload() {
-        if (!this.state.selectedFile || !this.state.jwtToken || this.state.isUploading) return;
-        
-        this.state.isUploading = true;
-        $('#uploadBtn').prop('disabled', true);
-        $('#stopBtn').prop('disabled', false);
-        $('#progressContainer').removeClass('d-none');
-        $('#progressBar').css('width', '0%').text('0%');
-        $('#progressPercent').text('0%');
-        
-        $('#statusBox').removeClass('success error warning').addClass('info');
-        $('#statusBox').html(`
-            <div class="fw-bold mb-1">Upload Initializing</div>
-            <div class="small">Creating upload session...</div>
-        `);
-        
-        const message = window.i18n ? 
-            i18n.t('messages.uploadStarted') : 
-            'Starting upload process...';
-        
-        logger.add(message, 'info');
-        
+    async createUploadSession() {
         try {
             const serverUrl = $('#serverUrl').val().trim();
             const baseUrl = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl;
             
-            logger.add(`Creating upload session at: ${baseUrl}/tus`, 'info');
-            
+            console.log('Creating upload session...');
+            console.log('   URL:', baseUrl + '/tus');
+            console.log('   File:', this.state.selectedFile.name);
+            console.log('   Size:', this.state.selectedFile.size);
+            console.log('   Type:', this.state.selectedFile.type);
+
+            // Encode filename for metadata
+            const encodedFilename = btoa(unescape(encodeURIComponent(this.state.selectedFile.name)));
+            console.log('   Encoded filename:', encodedFilename);
+
+            // Headers – حذف Content-Type برای درخواست POST creation (body خالی است)
+            const headers = {
+                'Tus-Resumable': '1.0.0',
+                'Upload-Length': this.state.selectedFile.size.toString(),
+                'Upload-Metadata': `filename ${encodedFilename},contentType ${btoa(this.state.selectedFile.type || 'application/octet-stream')}`
+            };
+
+            // اگر JWT وجود دارد اضافه کن
+            if (this.state.jwtToken) {
+                headers['Authorization'] = `Bearer ${this.state.jwtToken}`;
+            }
+
+            console.log('   Headers:', headers);
+
             // Create upload session
+            console.log('   Sending POST request...');
             const createResponse = await fetch(baseUrl + '/tus', {
                 method: 'POST',
-                headers: {
-                    'Tus-Resumable': '1.0.0',
-                    'Upload-Length': this.state.selectedFile.size.toString(),
-                    'Upload-Metadata': `filename ${btoa(encodeURIComponent(this.state.selectedFile.name))}`,
-                    'Authorization': `Bearer ${this.state.jwtToken}`
-                }
+                headers: headers,
+                mode: 'cors',
+                credentials: 'include'
             });
 
-            if (createResponse.status === 201 || createResponse.status === 204) {
-                let uploadUrl = createResponse.headers.get('Location');
-                if (uploadUrl) {
-                    if (uploadUrl.startsWith('/')) {
-                        uploadUrl = baseUrl + uploadUrl;
-                    }
-                    this.state.uploadUrl = uploadUrl;
-                    logger.add(`Session created: ${uploadUrl}`, 'success');
-                    
-                    // Upload chunks
-                    await this.uploadChunks();
-                    
-                    // Verify completion
-                    await this.verifyUploadCompletion();
-                    
-                    $('#statusBox').removeClass('info').addClass('success');
-                    $('#statusBox').html(`
-                        <div class="fw-bold mb-1">Upload Complete</div>
-                        <div class="small">File successfully uploaded to server.</div>
-                    `);
-                    
-                    const successMessage = window.i18n ? 
-                        i18n.t('messages.uploadComplete') : 
-                        'Upload completed successfully';
-                    
-                    toast.success(successMessage, 'Upload');
-                    
-                } else {
-                    throw new Error('No Location header in response');
+            console.log('   Response status:', createResponse.status);
+            console.log('   Response status text:', createResponse.statusText);
+
+            // Log all response headers
+            const responseHeaders = {};
+            for (const [key, value] of createResponse.headers.entries()) {
+                responseHeaders[key.toLowerCase()] = value;
+                console.log(`   Header ${key}: ${value}`);
+            }
+
+            if (createResponse.status === 201) {
+                let uploadUrl = responseHeaders['location'];
+
+                if (!uploadUrl) {
+                    throw new Error('No Location header returned from server');
                 }
+
+                // اگر URL نسبی باشد، به absolute تبدیل کن
+                if (uploadUrl.startsWith('/')) {
+                    uploadUrl = baseUrl + uploadUrl;
+                }
+
+                this.state.uploadUrl = uploadUrl;
+                console.log('   Session created successfully:', uploadUrl);
+                logger.add(`Upload session created: ${uploadUrl}`, 'success');
+                return true;
+
             } else {
                 const errorText = await createResponse.text();
-                throw new Error(`Server error ${createResponse.status}: ${errorText}`);
+                console.error('   Server error:', errorText);
+                throw new Error(`Server returned ${createResponse.status}: ${errorText.substring(0, 200)}`);
             }
             
         } catch (error) {
-            $('#statusBox').removeClass('info').addClass('error');
-            $('#statusBox').html(`
-                <div class="fw-bold mb-1">Upload Failed</div>
-                <div class="small">${error.message}</div>
-            `);
-            
-            const errorMessage = window.i18n ? 
-                i18n.t('messages.uploadError', { error: error.message }) : 
-                `Upload failed: ${error.message}`;
-            
-            logger.add(errorMessage, 'error');
-            toast.error(errorMessage, 'Upload Error');
-        } finally {
-            this.state.isUploading = false;
-            $('#uploadBtn').prop('disabled', false);
-            $('#stopBtn').prop('disabled', true);
+            console.error('Session creation failed:', error);
+            logger.add(`Failed to create upload session: ${error.message}`, 'error');
+            this.toast.show(`Failed to create session: ${error.message}`, 'danger', 'Error');
+            throw error;
         }
     }
 
-    async uploadChunks() {
-        let offset = 0;
-        const chunkSize = 1024 * 1024; // 1MB
-        const totalChunks = Math.ceil(this.state.selectedFile.size / chunkSize);
-        
-        logger.add(`Uploading ${totalChunks} chunks (${this.formatBytes(this.state.selectedFile.size)})`, 'info');
-        
-        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-            if (!this.state.isUploading) {
-                logger.add('Upload stopped by user', 'warning');
-                break;
-            }
-            
-            const start = chunkIndex * chunkSize;
-            const end = Math.min(start + chunkSize, this.state.selectedFile.size);
-            const chunk = this.state.selectedFile.slice(start, end);
-            
-            try {
-                const response = await fetch(this.state.uploadUrl, {
+    async startUpload() {
+        if (!this.state.selectedFile) {
+            this.toast.show('Please select a file first', 'warning');
+            return;
+        }
+
+        if (this.state.isUploading) {
+            this.toast.show('Upload already in progress', 'info');
+            return;
+        }
+
+        try {
+            // ایجاد session
+            await this.createUploadSession();
+
+            // شروع آپلود با PATCH
+            this.state.isUploading = true;
+            this.updateUI();
+
+            const file = this.state.selectedFile;
+            let offset = 0;
+            const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+
+            logger.add('Starting chunked upload...', 'info');
+
+            while (offset < file.size) {
+                const chunk = file.slice(offset, offset + chunkSize);
+                const chunkHeaders = {
+                    'Tus-Resumable': '1.0.0',
+                    'Upload-Offset': offset.toString(),
+                    'Content-Type': 'application/offset+octet-stream'
+                };
+
+                if (this.state.jwtToken) {
+                    chunkHeaders['Authorization'] = `Bearer ${this.state.jwtToken}`;
+                }
+
+                const patchResponse = await fetch(this.state.uploadUrl, {
                     method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/offset+octet-stream',
-                        'Upload-Offset': offset.toString(),
-                        'Tus-Resumable': '1.0.0',
-                        'Authorization': `Bearer ${this.state.jwtToken}`,
-                        'Content-Length': (end - start).toString()
-                    },
-                    body: chunk
+                    headers: chunkHeaders,
+                    body: chunk,
+                    mode: 'cors',
+                    credentials: 'include'
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Chunk ${chunkIndex + 1} failed: ${response.status}`);
+                if (patchResponse.status !== 204) {
+                    const errText = await patchResponse.text();
+                    throw new Error(`PATCH failed (${patchResponse.status}): ${errText.substring(0, 200)}`);
                 }
 
-                offset = parseInt(response.headers.get('Upload-Offset') || offset + (end - start));
-                
-                // Update progress
-                const progress = Math.round((offset / this.state.selectedFile.size) * 100);
-                $('#progressBar').css('width', `${progress}%`).text(`${progress}%`);
+                // دریافت offset جدید از هدر
+                const newOffset = parseInt(patchResponse.headers.get('Upload-Offset') || '0', 10);
+                offset = newOffset;
+
+                const progress = ((offset / file.size) * 100).toFixed(2);
                 $('#progressPercent').text(`${progress}%`);
-                
-                if (chunkIndex % 5 === 0 || chunkIndex === totalChunks - 1) {
-                    logger.add(`Progress: ${progress}% (${chunkIndex + 1}/${totalChunks} chunks)`, 'info');
-                }
-                
-            } catch (error) {
-                logger.add(`Chunk ${chunkIndex + 1} error: ${error.message}`, 'error');
-                throw error;
-            }
-        }
-    }
+                $('#progressBar').css('width', `${progress}%`).text(`${progress}%`);
 
-    async verifyUploadCompletion() {
-        logger.add('Verifying upload completion...', 'info');
-        
-        const response = await fetch(this.state.uploadUrl, {
-            method: 'HEAD',
-            headers: {
-                'Tus-Resumable': '1.0.0',
-                'Authorization': `Bearer ${this.state.jwtToken}`
+                logger.add(`Uploaded ${this.formatBytes(offset)} / ${this.formatBytes(file.size)} (${progress}%)`, 'info');
             }
-        });
 
-        if (response.ok) {
-            const uploadLength = response.headers.get('Upload-Length');
-            const uploadOffset = response.headers.get('Upload-Offset');
-            
-            if (uploadLength && uploadOffset && parseInt(uploadLength) === parseInt(uploadOffset)) {
-                logger.add('Upload verified: 100% complete', 'success');
-                return true;
-            }
+            logger.add('Upload completed successfully!', 'success');
+            this.toast.show('File uploaded successfully!', 'success', 'Success');
+            this.updateStatus('Upload completed', 'success');
+
+        } catch (error) {
+            console.error('Upload failed:', error);
+            logger.add(`Upload failed: ${error.message}`, 'error');
+            this.toast.show(`Upload failed: ${error.message}`, 'danger', 'Error');
+            this.updateStatus('Upload failed', 'danger');
+        } finally {
+            this.state.isUploading = false;
+            this.updateUI();
         }
-        logger.add('Upload verification incomplete', 'warning');
-        return false;
     }
 
     stopUpload() {
-        if (this.state.isUploading) {
-            this.state.isUploading = false;
-            if (this.state.currentRequest) {
-                this.state.currentRequest.abort();
-                this.state.currentRequest = null;
+        if (this.state.currentRequest && this.state.currentRequest.abort) {
+            this.state.currentRequest.abort();
+        }
+        this.state.isUploading = false;
+        this.updateUI();
+        logger.add('Upload stopped by user', 'warning');
+        this.toast.show('Upload cancelled', 'info');
+    }
+
+    handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        this.state.selectedFile = file;
+        $('#fileName').text(file.name);
+        $('#fileSize').text(this.formatBytes(file.size));
+        $('#fileType').text(file.type || 'unknown');
+        $('#progressContainer').addClass('d-none');
+
+        logger.add(`File selected: ${file.name} (${this.formatBytes(file.size)})`, 'info');
+        this.updateUI();
+    }
+
+    clearFile() {
+        this.state.selectedFile = null;
+        this.state.uploadUrl = null;
+        $('#fileInput').val('');
+        $('#fileName').text('-');
+        $('#fileSize').text('-');
+        $('#fileType').text('-');
+        $('#progressContainer').addClass('d-none');
+        this.updateUI();
+        logger.add('Selected file cleared', 'info');
+    }
+
+    setToken() {
+        const token = $('#jwtTokenInput').val().trim();
+        if (token) {
+            try {
+                const payload = this.parseJwt(token);
+                this.state.jwtToken = token;
+                $('#tokenStatus').text('Valid').removeClass('invalid').addClass('valid');
+                logger.add('JWT token set successfully', 'success');
+                this.saveData();
+            } catch (e) {
+                $('#tokenStatus').text('Invalid').removeClass('valid').addClass('invalid');
+                logger.add('Invalid JWT token format', 'error');
             }
-            
-            const message = window.i18n ? 
-                i18n.t('messages.uploadStopped') : 
-                'Upload stopped by user';
-            
-            logger.add(message, 'warning');
-            toast.warning(message, 'Upload');
-            
-            $('#statusBox').removeClass('info success').addClass('warning');
-            $('#statusBox').html(`
-                <div class="fw-bold mb-1">Upload Stopped</div>
-                <div class="small">Upload process terminated by user.</div>
-            `);
-            
-            $('#uploadBtn').prop('disabled', false);
-            $('#stopBtn').prop('disabled', true);
+        } else {
+            this.state.jwtToken = null;
+            $('#tokenStatus').text('None').removeClass('valid invalid');
+        }
+        this.updateUI();
+    }
+
+    async testServerConnection() {
+        const serverUrl = $('#serverUrl').val().trim();
+        if (!serverUrl) {
+            this.toast.show('Please enter server URL', 'warning');
+            return;
+        }
+
+        const baseUrl = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl;
+        try {
+            const response = await fetch(baseUrl + '/tus', {
+                method: 'OPTIONS',
+                mode: 'cors'
+            });
+
+            if (response.status === 204 || response.status === 200) {
+                const tusVersion = response.headers.get('Tus-Resumable');
+                if (tusVersion === '1.0.0') {
+                    logger.add('TUS server detected and reachable', 'success');
+                    this.toast.show('Server connection successful', 'success');
+                    this.updateConnectionStatus(true);
+                    this.saveData();
+                } else {
+                    logger.add(`Invalid Tus-Resumable header: ${tusVersion}`, 'error');
+                    this.toast.show('Not a valid TUS server', 'danger');
+                }
+            } else {
+                throw new Error(`Status ${response.status}`);
+            }
+        } catch (err) {
+            logger.add(`Connection failed: ${err.message}`, 'error');
+            this.toast.show('Cannot connect to server', 'danger');
+            this.updateConnectionStatus(false);
         }
     }
 
-    // UI Updates
     updateUI() {
-        const uploadBtn = $('#uploadBtn');
-        const statusBox = $('#statusBox');
-        
-        if (this.state.jwtToken && this.state.selectedFile) {
-            statusBox.removeClass('info warning error').addClass('success');
-            statusBox.html(`
-                <div class="fw-bold mb-1">Ready to Upload</div>
-                <div class="small">All requirements satisfied. Click "Start Upload" to proceed.</div>
-            `);
-            uploadBtn.prop('disabled', false);
-            $('#stopBtn').prop('disabled', true);
-        } else {
-            uploadBtn.prop('disabled', true);
-            $('#stopBtn').prop('disabled', true);
-            
-            let statusText = '';
-            if (!this.state.jwtToken && !this.state.selectedFile) {
-                statusBox.removeClass('success warning error').addClass('info');
-                statusText = 'Enter token and select a file';
-            } else if (!this.state.jwtToken) {
-                statusBox.removeClass('success info error').addClass('warning');
-                statusText = 'Authentication token required';
-            } else {
-                statusBox.removeClass('success info warning').addClass('info');
-                statusText = 'Select a file to upload';
-            }
-            
-            statusBox.html(`
-                <div class="fw-bold mb-1">System Status</div>
-                <div class="small">${statusText}</div>
-            `);
+        const hasFile = !!this.state.selectedFile;
+        const hasToken = !!this.state.jwtToken;
+        const canUpload = hasFile && !this.state.isUploading;
+
+        $('#uploadBtn').prop('disabled', !canUpload);
+        $('#stopBtn').prop('disabled', !this.state.isUploading);
+
+        if (this.state.isUploading) {
+            $('#statusBox').removeClass('info success danger').addClass('warning');
+            $('#statusBox .small').text('Uploading in progress...');
         }
+    }
+
+    updateStatus(title, type = 'info') {
+        const box = $('#statusBox');
+        box.removeClass('info success danger warning');
+        box.addClass(type);
+        box.find('.fw-bold').text(title);
+    }
+
+    setupEventListeners() {
+        $('#selectFileBtn').click(() => $('#fileInput').click());
+        $('#fileInput').change((e) => this.handleFileSelect(e));
+        
+        $('#serverUrl').on('change', () => {
+            this.state.serverUrl = $('#serverUrl').val().trim();
+            this.saveData();
+        });
     }
 
     updateConnectionStatus(connected) {
@@ -607,14 +378,12 @@ class TusUploadApp {
 
     // Data Persistence
     loadSavedData() {
-        // Load server URL
         const savedServerUrl = localStorage.getItem('tusServerUrl');
         if (savedServerUrl) {
             $('#serverUrl').val(savedServerUrl);
             this.state.serverUrl = savedServerUrl;
         }
         
-        // Load token
         const savedToken = localStorage.getItem('tusToken');
         if (savedToken) {
             $('#jwtTokenInput').val(savedToken);
@@ -622,7 +391,6 @@ class TusUploadApp {
             $('#tokenStatus').text('Valid').removeClass('invalid').addClass('valid');
         }
         
-        // Check URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const serverParam = urlParams.get('server');
         if (serverParam) {
@@ -649,16 +417,21 @@ class TusUploadApp {
     // Expose methods to global scope
     exposeMethods() {
         window.app = this;
-        window.copyLog = () => logger.copy();
-        window.clearLog = () => logger.clear();
-        window.pasteToken = () => this.pasteToken();
-        window.copyToken = () => this.copyToken();
-        window.setToken = () => this.setToken();
-        window.clearToken = () => this.clearToken();
-        window.testServerConnection = () => this.testServerConnection();
+        window.copyLog = () => {
+            logger.copy();
+            const message = window.i18n ? i18n.t('messages.logsCopied') : 'Logs copied to clipboard';
+            this.toast.show(message, 'success', 'Logs');
+        };
+        window.clearLog = () => {
+            logger.clear();
+            const message = window.i18n ? i18n.t('messages.logsCleared') : 'Logs cleared';
+            this.toast.show(message, 'info', 'Logs');
+        };
         window.startUpload = () => this.startUpload();
         window.stopUpload = () => this.stopUpload();
         window.clearFile = () => this.clearFile();
+        window.testServerConnection = () => this.testServerConnection();
+        window.setToken = () => this.setToken();
     }
 }
 
