@@ -1,441 +1,649 @@
-// app.js - Main Application Logic
-class TusUploadApp {
-    constructor() {
-        this.state = {
-            jwtToken: null,
-            selectedFile: null,
-            uploadUrl: null,
-            isUploading: false,
-            currentRequest: null,
-            serverUrl: 'https://localhost:7010'
-        };
+// app.js - Simple and Reliable Tus Upload App
+document.addEventListener("DOMContentLoaded", function () {
+  console.log("DOM loaded, initializing app...");
 
-        // Initialize toast first
-        this.toast = new ToastManager();
-        
-        this.initialize();
-    }
+  // Global state
+  const app = {
+    currentFile: null,
+    isUploading: false,
+    uploader: null,
+    jwtToken: null,
+    tusServerInfo: null,
 
-    initialize() {
-        // Set up event listeners
-        this.setupEventListeners();
-        
-        // Initialize UI
-        this.updateUI();
-        
-        // Start clock
-        this.startClock();
-        
-        // Check connectivity
-        this.checkConnectivity();
-        
-        // Load saved data
-        this.loadSavedData();
-        
-        // Add initial log
-        logger.add('Application initialized', 'info');
-        
-        // Expose methods to global scope
-        this.exposeMethods();
-    }
+    init: function () {
+      console.log("Initializing app...");
 
-    async createUploadSession() {
-        try {
-            const serverUrl = $('#serverUrl').val().trim();
-            const baseUrl = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl;
-            
-            console.log('Creating upload session...');
-            console.log('   URL:', baseUrl + '/tus');
-            console.log('   File:', this.state.selectedFile.name);
-            console.log('   Size:', this.state.selectedFile.size);
-            console.log('   Type:', this.state.selectedFile.type);
+      // Setup event listeners
+      this.setupEventListeners();
 
-            // Encode filename for metadata
-            const encodedFilename = btoa(unescape(encodeURIComponent(this.state.selectedFile.name)));
-            console.log('   Encoded filename:', encodedFilename);
+      // Load saved token
+      this.loadSavedToken();
 
-            // Headers – حذف Content-Type برای درخواست POST creation (body خالی است)
-            const headers = {
-                'Tus-Resumable': '1.0.0',
-                'Upload-Length': this.state.selectedFile.size.toString(),
-                'Upload-Metadata': `filename ${encodedFilename},contentType ${btoa(this.state.selectedFile.type || 'application/octet-stream')}`
-            };
+      // Update UI state
+      this.updateUploadButton();
 
-            // اگر JWT وجود دارد اضافه کن
-            if (this.state.jwtToken) {
-                headers['Authorization'] = `Bearer ${this.state.jwtToken}`;
-            }
+      // Initialize time
+      this.updateTime();
+      setInterval(() => this.updateTime(), 1000);
 
-            console.log('   Headers:', headers);
+      console.log("App initialized successfully");
+      logger.add("Application initialized successfully", "success");
+    },
 
-            // Create upload session
-            console.log('   Sending POST request...');
-            const createResponse = await fetch(baseUrl + '/tus', {
-                method: 'POST',
-                headers: headers,
-                mode: 'cors',
-                credentials: 'include'
-            });
+    setupEventListeners: function () {
+      console.log("Setting up event listeners...");
 
-            console.log('   Response status:', createResponse.status);
-            console.log('   Response status text:', createResponse.statusText);
-
-            // Log all response headers
-            const responseHeaders = {};
-            for (const [key, value] of createResponse.headers.entries()) {
-                responseHeaders[key.toLowerCase()] = value;
-                console.log(`   Header ${key}: ${value}`);
-            }
-
-            if (createResponse.status === 201) {
-                let uploadUrl = responseHeaders['location'];
-
-                if (!uploadUrl) {
-                    throw new Error('No Location header returned from server');
-                }
-
-                // اگر URL نسبی باشد، به absolute تبدیل کن
-                if (uploadUrl.startsWith('/')) {
-                    uploadUrl = baseUrl + uploadUrl;
-                }
-
-                this.state.uploadUrl = uploadUrl;
-                console.log('   Session created successfully:', uploadUrl);
-                logger.add(`Upload session created: ${uploadUrl}`, 'success');
-                return true;
-
-            } else {
-                const errorText = await createResponse.text();
-                console.error('   Server error:', errorText);
-                throw new Error(`Server returned ${createResponse.status}: ${errorText.substring(0, 200)}`);
-            }
-            
-        } catch (error) {
-            console.error('Session creation failed:', error);
-            logger.add(`Failed to create upload session: ${error.message}`, 'error');
-            this.toast.show(`Failed to create session: ${error.message}`, 'danger', 'Error');
-            throw error;
-        }
-    }
-
-    async startUpload() {
-        if (!this.state.selectedFile) {
-            this.toast.show('Please select a file first', 'warning');
-            return;
-        }
-
-        if (this.state.isUploading) {
-            this.toast.show('Upload already in progress', 'info');
-            return;
-        }
-
-        try {
-            // ایجاد session
-            await this.createUploadSession();
-
-            // شروع آپلود با PATCH
-            this.state.isUploading = true;
-            this.updateUI();
-
-            const file = this.state.selectedFile;
-            let offset = 0;
-            const chunkSize = 5 * 1024 * 1024; // 5MB chunks
-
-            logger.add('Starting chunked upload...', 'info');
-
-            while (offset < file.size) {
-                const chunk = file.slice(offset, offset + chunkSize);
-                const chunkHeaders = {
-                    'Tus-Resumable': '1.0.0',
-                    'Upload-Offset': offset.toString(),
-                    'Content-Type': 'application/offset+octet-stream'
-                };
-
-                if (this.state.jwtToken) {
-                    chunkHeaders['Authorization'] = `Bearer ${this.state.jwtToken}`;
-                }
-
-                const patchResponse = await fetch(this.state.uploadUrl, {
-                    method: 'PATCH',
-                    headers: chunkHeaders,
-                    body: chunk,
-                    mode: 'cors',
-                    credentials: 'include'
-                });
-
-                if (patchResponse.status !== 204) {
-                    const errText = await patchResponse.text();
-                    throw new Error(`PATCH failed (${patchResponse.status}): ${errText.substring(0, 200)}`);
-                }
-
-                // دریافت offset جدید از هدر
-                const newOffset = parseInt(patchResponse.headers.get('Upload-Offset') || '0', 10);
-                offset = newOffset;
-
-                const progress = ((offset / file.size) * 100).toFixed(2);
-                $('#progressPercent').text(`${progress}%`);
-                $('#progressBar').css('width', `${progress}%`).text(`${progress}%`);
-
-                logger.add(`Uploaded ${this.formatBytes(offset)} / ${this.formatBytes(file.size)} (${progress}%)`, 'info');
-            }
-
-            logger.add('Upload completed successfully!', 'success');
-            this.toast.show('File uploaded successfully!', 'success', 'Success');
-            this.updateStatus('Upload completed', 'success');
-
-        } catch (error) {
-            console.error('Upload failed:', error);
-            logger.add(`Upload failed: ${error.message}`, 'error');
-            this.toast.show(`Upload failed: ${error.message}`, 'danger', 'Error');
-            this.updateStatus('Upload failed', 'danger');
-        } finally {
-            this.state.isUploading = false;
-            this.updateUI();
-        }
-    }
-
-    stopUpload() {
-        if (this.state.currentRequest && this.state.currentRequest.abort) {
-            this.state.currentRequest.abort();
-        }
-        this.state.isUploading = false;
-        this.updateUI();
-        logger.add('Upload stopped by user', 'warning');
-        this.toast.show('Upload cancelled', 'info');
-    }
-
-    handleFileSelect(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        this.state.selectedFile = file;
-        $('#fileName').text(file.name);
-        $('#fileSize').text(this.formatBytes(file.size));
-        $('#fileType').text(file.type || 'unknown');
-        $('#progressContainer').addClass('d-none');
-
-        logger.add(`File selected: ${file.name} (${this.formatBytes(file.size)})`, 'info');
-        this.updateUI();
-    }
-
-    clearFile() {
-        this.state.selectedFile = null;
-        this.state.uploadUrl = null;
-        $('#fileInput').val('');
-        $('#fileName').text('-');
-        $('#fileSize').text('-');
-        $('#fileType').text('-');
-        $('#progressContainer').addClass('d-none');
-        this.updateUI();
-        logger.add('Selected file cleared', 'info');
-    }
-
-    setToken() {
-        const token = $('#jwtTokenInput').val().trim();
-        if (token) {
-            try {
-                const payload = this.parseJwt(token);
-                this.state.jwtToken = token;
-                $('#tokenStatus').text('Valid').removeClass('invalid').addClass('valid');
-                logger.add('JWT token set successfully', 'success');
-                this.saveData();
-            } catch (e) {
-                $('#tokenStatus').text('Invalid').removeClass('valid').addClass('invalid');
-                logger.add('Invalid JWT token format', 'error');
-            }
-        } else {
-            this.state.jwtToken = null;
-            $('#tokenStatus').text('None').removeClass('valid invalid');
-        }
-        this.updateUI();
-    }
-
-    async testServerConnection() {
-        const serverUrl = $('#serverUrl').val().trim();
-        if (!serverUrl) {
-            this.toast.show('Please enter server URL', 'warning');
-            return;
-        }
-
-        const baseUrl = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl;
-        try {
-            const response = await fetch(baseUrl + '/tus', {
-                method: 'OPTIONS',
-                mode: 'cors'
-            });
-
-            if (response.status === 204 || response.status === 200) {
-                const tusVersion = response.headers.get('Tus-Resumable');
-                if (tusVersion === '1.0.0') {
-                    logger.add('TUS server detected and reachable', 'success');
-                    this.toast.show('Server connection successful', 'success');
-                    this.updateConnectionStatus(true);
-                    this.saveData();
-                } else {
-                    logger.add(`Invalid Tus-Resumable header: ${tusVersion}`, 'error');
-                    this.toast.show('Not a valid TUS server', 'danger');
-                }
-            } else {
-                throw new Error(`Status ${response.status}`);
-            }
-        } catch (err) {
-            logger.add(`Connection failed: ${err.message}`, 'error');
-            this.toast.show('Cannot connect to server', 'danger');
-            this.updateConnectionStatus(false);
-        }
-    }
-
-    updateUI() {
-        const hasFile = !!this.state.selectedFile;
-        const hasToken = !!this.state.jwtToken;
-        const canUpload = hasFile && !this.state.isUploading;
-
-        $('#uploadBtn').prop('disabled', !canUpload);
-        $('#stopBtn').prop('disabled', !this.state.isUploading);
-
-        if (this.state.isUploading) {
-            $('#statusBox').removeClass('info success danger').addClass('warning');
-            $('#statusBox .small').text('Uploading in progress...');
-        }
-    }
-
-    updateStatus(title, type = 'info') {
-        const box = $('#statusBox');
-        box.removeClass('info success danger warning');
-        box.addClass(type);
-        box.find('.fw-bold').text(title);
-    }
-
-    setupEventListeners() {
-        $('#selectFileBtn').click(() => $('#fileInput').click());
-        $('#fileInput').change((e) => this.handleFileSelect(e));
-        
-        $('#serverUrl').on('change', () => {
-            this.state.serverUrl = $('#serverUrl').val().trim();
-            this.saveData();
+      // File selection button
+      document
+        .getElementById("selectFileBtn")
+        .addEventListener("click", (e) => {
+          e.preventDefault();
+          document.getElementById("fileInput").click();
         });
-    }
 
-    updateConnectionStatus(connected) {
-        const badge = $('#connectionStatus');
-        if (connected) {
-            badge.removeClass('bg-secondary bg-danger').addClass('bg-success');
-            badge.text('Online');
-        } else {
-            badge.removeClass('bg-secondary bg-success').addClass('bg-danger');
-            badge.text('Offline');
+      // File input change
+      document.getElementById("fileInput").addEventListener("change", (e) => {
+        this.handleFileSelect(e);
+      });
+
+      // Drag and drop area
+      const dropArea = document.getElementById("dropArea");
+
+      dropArea.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropArea.classList.add("dragover");
+      });
+
+      dropArea.addEventListener("dragleave", () => {
+        dropArea.classList.remove("dragover");
+      });
+
+      dropArea.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropArea.classList.remove("dragover");
+
+        if (e.dataTransfer.files.length) {
+          this.handleFileDrop(e.dataTransfer.files[0]);
         }
-    }
+      });
 
-    checkConnectivity() {
-        this.updateConnectionStatus(navigator.onLine);
-    }
+      // Click on upload area to browse
+      dropArea.addEventListener("click", (e) => {
+        e.preventDefault();
+        document.getElementById("fileInput").click();
+      });
 
-    // Utility Functions
-    formatBytes(bytes, decimals = 2) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const dm = decimals < 0 ? 0 : decimals;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-    }
-
-    parseJwt(token) {
-        try {
-            const base64Url = token.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
-                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-            }).join(''));
-            return JSON.parse(jsonPayload);
-        } catch {
-            throw new Error('Invalid token format');
+      // Server URL enter key
+      document.getElementById("serverUrl").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          this.testServerConnection();
         }
-    }
+      });
 
-    // Clock
-    startClock() {
-        this.updateClock();
-        setInterval(() => this.updateClock(), 1000);
-    }
+      console.log("Event listeners setup complete");
+    },
 
-    updateClock() {
-        const now = new Date();
-        const timeString = now.toLocaleTimeString('en-US', { 
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
-        const dateString = now.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        });
-        $('#currentTime').text(`${dateString} ${timeString}`);
-    }
-
-    // Data Persistence
-    loadSavedData() {
-        const savedServerUrl = localStorage.getItem('tusServerUrl');
-        if (savedServerUrl) {
-            $('#serverUrl').val(savedServerUrl);
-            this.state.serverUrl = savedServerUrl;
-        }
-        
-        const savedToken = localStorage.getItem('tusToken');
+    loadSavedToken: function () {
+      try {
+        const savedToken = localStorage.getItem("jwtToken");
         if (savedToken) {
-            $('#jwtTokenInput').val(savedToken);
-            this.state.jwtToken = savedToken;
-            $('#tokenStatus').text('Valid').removeClass('invalid').addClass('valid');
+          document.getElementById("jwtTokenInput").value = savedToken;
+          this.setToken();
         }
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const serverParam = urlParams.get('server');
-        if (serverParam) {
-            $('#serverUrl').val(serverParam);
-            this.state.serverUrl = serverParam;
-        }
-        
-        const tokenParam = urlParams.get('token');
-        if (tokenParam) {
-            $('#jwtTokenInput').val(tokenParam);
-            setTimeout(() => this.setToken(), 100);
-        }
-    }
+      } catch (error) {
+        console.error("Error loading saved token:", error);
+      }
+    },
 
-    saveData() {
-        if (this.state.serverUrl) {
-            localStorage.setItem('tusServerUrl', this.state.serverUrl);
-        }
-        if (this.state.jwtToken) {
-            localStorage.setItem('tusToken', this.state.jwtToken);
-        }
-    }
+    handleFileSelect: function (event) {
+      const file = event.target.files[0];
+      if (file) {
+        this.setSelectedFile(file);
+      }
+    },
 
-    // Expose methods to global scope
-    exposeMethods() {
-        window.app = this;
-        window.copyLog = () => {
-            logger.copy();
-            const message = window.i18n ? i18n.t('messages.logsCopied') : 'Logs copied to clipboard';
-            this.toast.show(message, 'success', 'Logs');
+    handleFileDrop: function (file) {
+      if (file) {
+        this.setSelectedFile(file);
+      }
+    },
+
+    setSelectedFile: function (file) {
+      // Validate file
+      const maxSize = 1024 * 1024 * 1024; // 1GB
+      if (file.size > maxSize) {
+        const message = `File size too large (max ${this.formatFileSize(
+          maxSize
+        )})`;
+        logger.add(message, "error");
+        toastManager.error(message);
+        return;
+      }
+
+      // Check file extension
+      const blockedExtensions = [
+        ".exe",
+        ".bat",
+        ".dll",
+        ".jar",
+        ".apk",
+        ".ps1",
+        ".vbs",
+        ".js",
+        ".msi",
+        ".com",
+        ".scr",
+        ".pif",
+        ".cmd",
+        ".lnk",
+      ];
+      const fileExt = file.name
+        .toLowerCase()
+        .substring(file.name.lastIndexOf("."));
+
+      if (blockedExtensions.includes(fileExt)) {
+        const message = `Blocked file type: ${fileExt}`;
+        logger.add(message, "error");
+        toastManager.error(message);
+        return;
+      }
+
+      this.currentFile = file;
+
+      // Update UI
+      document.getElementById("fileName").textContent = file.name;
+      document.getElementById("fileSize").textContent = this.formatFileSize(
+        file.size
+      );
+      document.getElementById("fileType").textContent =
+        file.type || this.getFileTypeFromExtension(fileExt);
+
+      // Show file info and hide drop area
+      document.getElementById("fileInfo").classList.remove("d-none");
+      document.getElementById("dropArea").classList.add("d-none");
+
+      // Update upload button
+      this.updateUploadButton();
+
+      // Log and show toast
+      const message = i18n.t("messages.fileSelected", { filename: file.name });
+      logger.add(message, "success");
+      toastManager.success(message);
+    },
+
+    clearFile: function () {
+      this.currentFile = null;
+
+      // Reset UI
+      document.getElementById("fileInput").value = "";
+      document.getElementById("fileName").textContent = "-";
+      document.getElementById("fileSize").textContent = "-";
+      document.getElementById("fileType").textContent = "-";
+
+      document.getElementById("fileInfo").classList.add("d-none");
+      document.getElementById("dropArea").classList.remove("d-none");
+      document.getElementById("progressContainer").classList.add("d-none");
+      document.getElementById("progressBar").style.width = "0%";
+      document.getElementById("progressBar").textContent = "0%";
+      document.getElementById("progressPercent").textContent = "0%";
+
+      // Stop any ongoing upload
+      if (this.uploader && this.isUploading) {
+        this.stopUpload();
+      }
+
+      // Update buttons
+      this.updateUploadButton();
+
+      // Log and show toast
+      const message = i18n.t("messages.fileCleared");
+      logger.add(message, "info");
+      toastManager.info(message);
+    },
+
+    setToken: function () {
+      const tokenInput = document.getElementById("jwtTokenInput").value.trim();
+
+      if (!tokenInput) {
+        const message = i18n.t("messages.tokenInvalid");
+        logger.add(message, "error");
+        toastManager.error(message);
+        return;
+      }
+
+      this.jwtToken = tokenInput;
+
+      // Update UI
+      const tokenStatus = document.getElementById("tokenStatus");
+      tokenStatus.classList.remove("invalid");
+      tokenStatus.classList.add("valid");
+      tokenStatus.textContent = i18n.t("token.validToken");
+
+      // Update upload button
+      this.updateUploadButton();
+
+      // Log and show toast
+      const message = i18n.t("messages.tokenSet");
+      logger.add(message, "success");
+      toastManager.success(message);
+
+      // Save to localStorage
+      try {
+        localStorage.setItem("jwtToken", tokenInput);
+      } catch (error) {
+        console.error("Could not save token to localStorage:", error);
+      }
+    },
+
+    clearToken: function () {
+      this.jwtToken = null;
+      document.getElementById("jwtTokenInput").value = "";
+
+      // Update UI
+      const tokenStatus = document.getElementById("tokenStatus");
+      tokenStatus.classList.remove("valid");
+      tokenStatus.classList.add("invalid");
+      tokenStatus.textContent = i18n.t("token.noToken");
+
+      // Update upload button
+      this.updateUploadButton();
+
+      // Log and show toast
+      const message = i18n.t("messages.tokenCleared");
+      logger.add(message, "info");
+      toastManager.info(message);
+
+      // Remove from localStorage
+      try {
+        localStorage.removeItem("jwtToken");
+      } catch (error) {
+        console.error("Could not remove token from localStorage:", error);
+      }
+    },
+
+    pasteToken: function () {
+      try {
+        // Focus on the token input
+        const tokenInput = document.getElementById("jwtTokenInput");
+        tokenInput.focus();
+
+        logger.add("Please paste using Ctrl+V in the token field", "info");
+        toastManager.info("Please paste using Ctrl+V in the token field");
+      } catch (error) {
+        console.error("Error in pasteToken:", error);
+        toastManager.error("Please paste manually using Ctrl+V");
+      }
+    },
+
+    copyToken: function () {
+      try {
+        const token = document.getElementById("jwtTokenInput").value;
+        if (!token || token.trim() === "") {
+          logger.add("No token to copy", "warning");
+          toastManager.warning("No token to copy");
+          return;
+        }
+
+        // Use modern Clipboard API if available
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard
+            .writeText(token)
+            .then(() => {
+              logger.add("Token copied to clipboard", "success");
+              toastManager.success("Token copied to clipboard");
+            })
+            .catch((err) => {
+              // Fallback to execCommand
+              this.copyTokenFallback(token);
+            });
+        } else {
+          // Fallback to execCommand
+          this.copyTokenFallback(token);
+        }
+      } catch (error) {
+        console.error("Error in copyToken:", error);
+        logger.add("Failed to copy token", "error");
+        toastManager.error("Failed to copy token");
+      }
+    },
+
+    copyTokenFallback: function (token) {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = token;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-999999px";
+        textarea.style.top = "-999999px";
+        document.body.appendChild(textarea);
+
+        textarea.select();
+        textarea.setSelectionRange(0, 99999);
+
+        const successful = document.execCommand("copy");
+        document.body.removeChild(textarea);
+
+        if (successful) {
+          logger.add("Token copied to clipboard", "success");
+          toastManager.success("Token copied to clipboard");
+        } else {
+          throw new Error("Copy command failed");
+        }
+      } catch (error) {
+        throw error;
+      }
+    },
+
+    testServerConnection: async function () {
+      const serverUrl = document.getElementById("serverUrl").value.trim();
+
+      if (!serverUrl) {
+        logger.add("Please enter a server URL", "error");
+        toastManager.error("Please enter a server URL");
+        return;
+      }
+
+      try {
+        new URL(serverUrl);
+      } catch {
+        logger.add("Invalid URL format", "error");
+        toastManager.error("Invalid URL format");
+        return;
+      }
+
+      const tusEndpoint = serverUrl + "/tus";
+      logger.add(`Testing connection to: ${tusEndpoint}`, "info");
+
+      try {
+        const response = await fetch(tusEndpoint, {
+          method: "OPTIONS",
+          headers: {
+            "Tus-Resumable": "1.0.0",
+          },
+        });
+
+        if (response.ok) {
+          const tusResumable = response.headers.get("Tus-Resumable");
+          const tusMaxSize = response.headers.get("Tus-Max-Size");
+
+          this.tusServerInfo = {
+            resumableVersion: tusResumable || "1.0.0",
+            maxSize: tusMaxSize ? parseInt(tusMaxSize) : null,
+          };
+
+          logger.add("Server connection successful", "success");
+          toastManager.success("Server connection successful");
+
+          // Update connection status
+          const connectionStatus = document.getElementById("connectionStatus");
+          connectionStatus.classList.remove("bg-secondary");
+          connectionStatus.classList.add("bg-success");
+          connectionStatus.textContent = i18n.t("status.online");
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (error) {
+        logger.add(`Server test failed: ${error.message}`, "error");
+        toastManager.error("Cannot connect to server");
+
+        // Update connection status
+        const connectionStatus = document.getElementById("connectionStatus");
+        connectionStatus.classList.remove("bg-success");
+        connectionStatus.classList.add("bg-secondary");
+        connectionStatus.textContent = i18n.t("status.offline");
+
+        this.tusServerInfo = null;
+      }
+
+      this.updateUploadButton();
+    },
+
+    updateUploadButton: function () {
+      const hasServer =
+        document.getElementById("serverUrl").value.trim().length > 0;
+      const hasToken = this.jwtToken !== null;
+      const hasFile = this.currentFile !== null;
+      const isUploading = this.isUploading;
+
+      const canUpload = hasServer && hasToken && hasFile && !isUploading;
+
+      document.getElementById("uploadBtn").disabled = !canUpload;
+      document.getElementById("stopBtn").disabled = !isUploading;
+    },
+
+    startUpload: function () {
+      if (!this.currentFile) {
+        logger.add("No file selected", "error");
+        toastManager.error("No file selected");
+        return;
+      }
+
+      if (!this.jwtToken) {
+        logger.add("No authentication token set", "error");
+        toastManager.error("No authentication token set");
+        return;
+      }
+
+      const serverUrl = document.getElementById("serverUrl").value.trim();
+      if (!serverUrl) {
+        logger.add("No server URL entered", "error");
+        toastManager.error("No server URL entered");
+        return;
+      }
+
+      if (typeof tus === "undefined") {
+        logger.add("TUS library not loaded", "error");
+        toastManager.error("TUS library not loaded");
+        return;
+      }
+
+      this.isUploading = true;
+      this.updateUploadButton();
+
+      // Show progress UI
+      document.getElementById("progressContainer").classList.remove("d-none");
+
+      logger.add("Upload started", "info");
+      logger.add(
+        `Uploading: ${this.currentFile.name} (${this.formatFileSize(
+          this.currentFile.size
+        )})`,
+        "info"
+      );
+
+      try {
+        const metadata = {
+          filename: btoa(encodeURIComponent(this.currentFile.name)),
+          contentType: btoa(
+            this.currentFile.type || "application/octet-stream"
+          ),
         };
-        window.clearLog = () => {
-            logger.clear();
-            const message = window.i18n ? i18n.t('messages.logsCleared') : 'Logs cleared';
-            this.toast.show(message, 'info', 'Logs');
-        };
-        window.startUpload = () => this.startUpload();
-        window.stopUpload = () => this.stopUpload();
-        window.clearFile = () => this.clearFile();
-        window.testServerConnection = () => this.testServerConnection();
-        window.setToken = () => this.setToken();
-    }
+
+        const metadataStr = Object.entries(metadata)
+          .map(([key, value]) => `${key} ${value}`)
+          .join(",");
+
+        this.uploader = new tus.Upload(this.currentFile, {
+          endpoint: serverUrl + "/tus",
+          retryDelays: [0, 3000, 5000, 10000, 20000],
+          headers: {
+            Authorization: `Bearer ${this.jwtToken}`,
+            "Upload-Metadata": metadataStr,
+            "Tus-Resumable": "1.0.0",
+          },
+          chunkSize: 5 * 1024 * 1024,
+          onError: (error) => {
+            logger.add(`Upload error: ${error.message}`, "error");
+            toastManager.error(`Upload failed: ${error.message}`);
+
+            this.isUploading = false;
+            this.updateUploadButton();
+          },
+          onProgress: (bytesUploaded, bytesTotal) => {
+            const percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(2);
+            const progressBar = document.getElementById("progressBar");
+            progressBar.style.width = percentage + "%";
+            progressBar.textContent = percentage + "%";
+            document.getElementById("progressPercent").textContent =
+              percentage + "%";
+          },
+          onSuccess: () => {
+            logger.add("Upload completed successfully", "success");
+            toastManager.success("Upload completed successfully");
+
+            this.isUploading = false;
+            this.updateUploadButton();
+
+            // Auto-clear after 3 seconds
+            setTimeout(() => {
+              if (!this.isUploading) {
+                this.clearFile();
+              }
+            }, 3000);
+          },
+        });
+
+        this.uploader.start();
+      } catch (error) {
+        logger.add(`Failed to start upload: ${error.message}`, "error");
+        toastManager.error(`Failed to start upload: ${error.message}`);
+
+        this.isUploading = false;
+        this.updateUploadButton();
+      }
+    },
+
+    stopUpload: function () {
+      if (this.uploader && this.isUploading) {
+        this.uploader.abort();
+        logger.add("Upload stopped", "warning");
+        toastManager.warning("Upload stopped");
+
+        this.isUploading = false;
+        this.updateUploadButton();
+      }
+    },
+
+    updateTime: function () {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString("en-US", {
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+      document.getElementById("currentTime").textContent = timeString;
+    },
+
+    formatFileSize: function (bytes) {
+      if (bytes === 0) return "0 Bytes";
+
+      const k = 1024;
+      const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    },
+
+    getFileTypeFromExtension: function (extension) {
+      const typeMap = {
+        ".jpg": "Image (JPEG)",
+        ".jpeg": "Image (JPEG)",
+        ".png": "Image (PNG)",
+        ".gif": "Image (GIF)",
+        ".pdf": "PDF Document",
+        ".doc": "Word Document",
+        ".docx": "Word Document",
+        ".xls": "Excel Spreadsheet",
+        ".xlsx": "Excel Spreadsheet",
+        ".zip": "Archive (ZIP)",
+        ".rar": "Archive (RAR)",
+        ".mp4": "Video (MP4)",
+        ".avi": "Video (AVI)",
+        ".mov": "Video (MOV)",
+        ".mkv": "Video (MKV)",
+        ".mp3": "Audio (MP3)",
+        ".wav": "Audio (WAV)",
+        ".ogg": "Audio (OGG)",
+        ".txt": "Text File",
+      };
+
+      const lowerExt = (extension || "").toLowerCase();
+      return typeMap[lowerExt] || "Unknown File Type";
+    },
+  };
+
+  // Make app globally available
+  window.app = app;
+
+  // Initialize the app after a short delay to ensure all scripts are loaded
+  setTimeout(() => {
+    app.init();
+  }, 100);
+});
+
+// Global functions called from HTML
+function testServerConnection() {
+  if (window.app && window.app.testServerConnection) {
+    window.app.testServerConnection();
+  }
 }
 
-// Initialize application when DOM is ready
-$(document).ready(() => {
-    new TusUploadApp();
-});
+function setToken() {
+  if (window.app && window.app.setToken) {
+    window.app.setToken();
+  }
+}
+
+function clearToken() {
+  if (window.app && window.app.clearToken) {
+    window.app.clearToken();
+  }
+}
+
+function pasteToken() {
+  if (window.app && window.app.pasteToken) {
+    window.app.pasteToken();
+  }
+}
+
+function copyToken() {
+  if (window.app && window.app.copyToken) {
+    window.app.copyToken();
+  }
+}
+
+function startUpload() {
+  if (window.app && window.app.startUpload) {
+    window.app.startUpload();
+  }
+}
+
+function stopUpload() {
+  if (window.app && window.app.stopUpload) {
+    window.app.stopUpload();
+  }
+}
+
+function clearFile() {
+  if (window.app && window.app.clearFile) {
+    window.app.clearFile();
+  }
+}
+
+function copyLog() {
+  if (logger && logger.copy) {
+    logger.copy();
+    const message = i18n.t("messages.logsCopied");
+    toastManager.success(message);
+    logger.add(message, "success");
+  }
+}
+
+function clearLog() {
+  if (logger && logger.clear) {
+    logger.clear();
+    const message = i18n.t("messages.logsCleared");
+    toastManager.info(message);
+    logger.add(message, "info");
+  }
+}
